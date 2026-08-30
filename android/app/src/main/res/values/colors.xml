@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="ic_launcher_background">#f6ebf9</color>
+    <!-- 启动画面背景：浅色（淡紫白）/ 深色（深紫黑），与 App 明暗主题衔接 -->
+    <color name="splash_background_light">#F6EBF9</color>
+    <color name="splash_background_dark">#141019</color>
 </resources>

@@ -1,35 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 13+ 主题图标（单色）：照片卡 + 双山 + 太阳剪影，内容居中于 66dp 安全区 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-  <path
-      android:pathData="m51.98,36l0.77,0a7.91,7.48 90,0 1,7.48 7.91l0,1.36a20.73,19.6 90,0 1,-19.6 20.73,2.18 2.06,90 0,1 -1.55,-2.73l0,-13.91a13.64,12.9 90,0 1,12.9 -13.36z">
-    <aapt:attr name="android:fillColor">
-      <gradient
-          android:startX="56.88"
-          android:startY="54.55"
-          android:endX="50.17"
-          android:endY="35.45"
-          android:type="linear">
-        <item android:offset="0" android:color="#00FFFFFF"/>
-        <item android:offset="1" android:color="#FFFFFFFF"/>
-      </gradient>
-    </aapt:attr>
-  </path>
-  <path
-      android:pathData="m69,58.36l-0,-1.09a9,8.51 90,0 0,-8.25 -9l-1.29,-0a21.55,20.38 90,0 0,-20.38 21.55l-0,0.82a1.36,1.29 90,0 0,1.29 1.36l15.73,-0a13.64,12.9 90,0 0,12.9 -13.64z">
-    <aapt:attr name="android:fillColor">
-      <gradient
-          android:startX="56.36"
-          android:startY="69.55"
-          android:endX="56.36"
-          android:endY="49.42"
-          android:type="linear">
-        <item android:offset="0" android:color="#19FFFFFF"/>
-        <item android:offset="1" android:color="#FFFFFFFF"/>
-      </gradient>
-    </aapt:attr>
-  </path>
+    <!-- 圆角照片卡 -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M32,32L76,32A6,6 0 0 1 82,38L82,70A6,6 0 0 1 76,76L32,76A6,6 0 0 1 26,70L26,38A6,6 0 0 1 32,32Z"/>
+    <!-- 太阳 -->
+    <path
+        android:fillColor="#B3FFFFFF"
+        android:pathData="M66,39A5,5 0 1 1 65.99,39A5,5 0 1 1 66,39Z"/>
+    <!-- 远山 -->
+    <path
+        android:fillColor="#80FFFFFF"
+        android:pathData="M26,76L40,52L54,76Z"/>
+    <!-- 近山 -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M46,76L60,46L82,76Z"/>
 </vector>
