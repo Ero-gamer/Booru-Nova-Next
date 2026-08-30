@@ -35,7 +35,8 @@ class MoebooruRepository extends BaseBooruRepository {
       return const BooruPageResult(posts: [], hasMore: false);
     }
 
-    final posts = MoebooruParser.parsePosts(serverId, data);
+    final posts = MoebooruParser.parsePosts(serverId, data,
+        siteUrl: dio.options.baseUrl);
     return BooruPageResult(
       posts: posts.map((p) => p.toSummary(serverId)).toList(),
       hasMore: posts.length >= query.limit,
@@ -71,25 +72,21 @@ class MoebooruRepository extends BaseBooruRepository {
 
   @override
   Future<List<BooruPool>> fetchPools({int page = 1, int limit = 20}) async {
-    try {
-      final response = await dio.get(
-        '/pool.json',
-        queryParameters: {'page': page, 'limit': limit},
+    // 网络/认证错误向上抛出，让 UI 显示真实原因；「暂不支持」由默认空实现表达
+    final response = await dio.get(
+      '/pool.json',
+      queryParameters: {'page': page, 'limit': limit},
+    );
+    final data = response.data;
+    if (data is! List) return [];
+    return data.whereType<Map<String, dynamic>>().map((m) {
+      return BooruPool(
+        id: m['id']?.toString() ?? '',
+        name: m['name']?.toString() ?? '',
+        description: m['description']?.toString() ?? '',
+        postCount: m['post_count'] as int? ?? 0,
       );
-      final data = response.data;
-      if (data is! List) return [];
-      return data.map((e) {
-        final m = e as Map<String, dynamic>;
-        return BooruPool(
-          id: m['id']?.toString() ?? '',
-          name: m['name']?.toString() ?? '',
-          description: m['description']?.toString() ?? '',
-          postCount: m['post_count'] as int? ?? 0,
-        );
-      }).where((p) => p.id.isNotEmpty).toList();
-    } catch (_) {
-      return [];
-    }
+    }).where((p) => p.id.isNotEmpty).toList();
   }
 
 }

@@ -3,8 +3,6 @@ import 'package:boorunova/data/repository/booru/entity/post.dart';
 class MoebooruParser {
   MoebooruParser._();
 
-  static const _siteUrl = 'https://yande.re';
-
   static String _abs(String url) {
     if (url.isEmpty) return url;
     if (url.startsWith('//')) return 'https:$url';
@@ -14,8 +12,9 @@ class MoebooruParser {
 
   static List<BooruPost> parsePosts(
     String serverId,
-    List<dynamic> json,
-  ) {
+    List<dynamic> json, {
+    String siteUrl = 'https://yande.re',
+  }) {
     return json.whereType<Map<String, dynamic>>().map((post) {
       final id = post['id']?.toString() ?? '';
       var fileUrl = _abs((post['file_url'] as String?) ?? '');
@@ -47,7 +46,7 @@ class MoebooruParser {
         rating: rating,
         score: score,
         source: source.isEmpty ? null : source,
-        postUrl: id.isEmpty ? null : '$_siteUrl/post/show/$id',
+        postUrl: id.isEmpty ? null : '$siteUrl/post/show/$id',
         uploader: author.isEmpty ? null : author,
       );
     }).toList();

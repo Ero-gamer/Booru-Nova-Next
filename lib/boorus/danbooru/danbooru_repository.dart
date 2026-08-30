@@ -77,33 +77,29 @@ class DanbooruRepository extends BaseBooruRepository {
 
   @override
   Future<List<BooruPool>> fetchPools({int page = 1, int limit = 20}) async {
-    try {
-      final response = await dio.get(
-        '/pools.json',
-        queryParameters: {
-          'page': page,
-          'limit': limit,
-          'search[order]': 'updated_at',
-        },
+    // 网络/认证错误向上抛出，让 UI 显示真实原因；「暂不支持」由默认空实现表达
+    final response = await dio.get(
+      '/pools.json',
+      queryParameters: {
+        'page': page,
+        'limit': limit,
+        'search[order]': 'updated_at',
+      },
+    );
+    final data = response.data;
+    if (data is! List) return [];
+    return data.whereType<Map<String, dynamic>>().map((m) {
+      final ids = (m['post_ids'] as List? ?? [])
+          .map((i) => i.toString())
+          .toList();
+      return BooruPool(
+        id: m['id']?.toString() ?? '',
+        name: m['name']?.toString() ?? '',
+        description: m['description']?.toString() ?? '',
+        postCount: m['post_count'] as int? ?? ids.length,
+        postIds: ids,
       );
-      final data = response.data;
-      if (data is! List) return [];
-      return data.map((e) {
-        final m = e as Map<String, dynamic>;
-        final ids = (m['post_ids'] as List? ?? [])
-            .map((i) => i.toString())
-            .toList();
-        return BooruPool(
-          id: m['id']?.toString() ?? '',
-          name: m['name']?.toString() ?? '',
-          description: m['description']?.toString() ?? '',
-          postCount: m['post_count'] as int? ?? ids.length,
-          postIds: ids,
-        );
-      }).where((p) => p.id.isNotEmpty).toList();
-    } catch (_) {
-      return [];
-    }
+    }).where((p) => p.id.isNotEmpty).toList();
   }
 
 }

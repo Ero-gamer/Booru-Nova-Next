@@ -49,8 +49,8 @@ void main() {
       expect(p1.score, 88);
       expect(p1.source, 'https://pixiv.net/x');
       expect(p1.uploader, 'artist_name');
-      // sankaku 的 postUrl 就是 id 本身
-      expect(p1.postUrl, '777');
+      // postUrl 为可访问的帖子链接
+      expect(p1.postUrl, 'https://chan.sankakucomplex.com/post/show/777');
 
       final p2 = posts[1];
       // jpeg_url 缺失时回退 sample_url

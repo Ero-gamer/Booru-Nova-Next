@@ -81,8 +81,8 @@ void main() {
       expect(p1.score, 128);
       // source 取 sources 第一个
       expect(p1.source, 'https://example.com/src1');
-      // postUrl 直接为 id 字符串
-      expect(p1.postUrl, '4567890');
+      // postUrl 为可访问的帖子链接
+      expect(p1.postUrl, 'https://e621.net/posts/4567890');
 
       final p2 = posts[1];
       expect(p2.id, '4567891');

@@ -5,8 +5,9 @@ class SankakuParser {
 
   static List<BooruPost> parsePosts(
     String serverId,
-    List<dynamic> json,
-  ) {
+    List<dynamic> json, {
+    String baseUrl = 'https://chan.sankakucomplex.com',
+  }) {
     return json.whereType<Map<String, dynamic>>().map((post) {
       final id = post['id']?.toString() ?? '';
       final fileUrl = (post['file_url'] as String?) ?? '';
@@ -34,7 +35,7 @@ class SankakuParser {
         rating: rating,
         score: score,
         source: source.isEmpty ? null : source,
-        postUrl: id,
+        postUrl: id.isEmpty ? null : '$baseUrl/post/show/$id',
         uploader: author.isEmpty ? null : author,
       );
     }).toList();

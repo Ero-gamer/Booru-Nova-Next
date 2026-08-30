@@ -5,8 +5,9 @@ class ZerochanParser {
 
   static List<BooruPost> parsePosts(
     String serverId,
-    Map<String, dynamic> json,
-  ) {
+    Map<String, dynamic> json, {
+    String baseUrl = 'https://www.zerochan.net',
+  }) {
     final items = json['items'];
     if (items is! List) return [];
 
@@ -37,7 +38,7 @@ class ZerochanParser {
         rating: rating,
         score: 0,
         source: source.isEmpty ? null : source,
-        postUrl: id,
+        postUrl: id.isEmpty ? null : '$baseUrl/$id',
         uploader: author.isEmpty ? null : author,
       );
     }).toList();

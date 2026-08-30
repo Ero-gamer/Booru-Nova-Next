@@ -30,6 +30,8 @@ final booruRegistryProvider = Provider<BooruRegistry>((ref) {
   _registerDefaults(registry);
   final interceptor = ref.read(hostsInterceptorProvider);
   registry.hostsInterceptor = interceptor;
+  // 共享给下载等静态工具类：让下载请求同样命中自定义 hosts 映射
+  DioFactory.sharedHostsInterceptor = interceptor;
   return registry;
 });
 

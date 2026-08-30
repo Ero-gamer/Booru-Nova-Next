@@ -26,7 +26,8 @@ class SankakuRepository extends BaseBooruRepository {
       return const BooruPageResult(posts: [], hasMore: false);
     }
 
-    final posts = SankakuParser.parsePosts(serverId, data);
+    final posts = SankakuParser.parsePosts(serverId, data,
+        baseUrl: dio.options.baseUrl);
     return BooruPageResult(
       posts: posts.map((p) => p.toSummary(serverId)).toList(),
       hasMore: posts.length >= query.limit,

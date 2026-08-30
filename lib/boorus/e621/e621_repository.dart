@@ -40,7 +40,8 @@ class E621Repository extends BaseBooruRepository {
       return const BooruPageResult(posts: [], hasMore: false);
     }
 
-    final posts = E621Parser.parsePosts(serverId, postsData);
+    final posts = E621Parser.parsePosts(serverId, postsData,
+        baseUrl: dio.options.baseUrl);
     return BooruPageResult(
       posts: posts.map((p) => p.toSummary(serverId)).toList(),
       hasMore: posts.length >= query.limit,
@@ -83,8 +84,11 @@ class E621Repository extends BaseBooruRepository {
       },
     );
     final data = response.data;
-    if (data is! List) return [];
-    return data
+    // /tags.json 返回的是对象 {"tags": [...]}（与 suggestTags 一致），非数组。
+    if (data is! Map) return [];
+    final tags = data['tags'];
+    if (tags is! List) return [];
+    return tags
         .whereType<Map<String, dynamic>>()
         .map((e) => (e['name'] as String?) ?? '')
         .where((name) => name.isNotEmpty)
@@ -93,28 +97,25 @@ class E621Repository extends BaseBooruRepository {
 
   @override
   Future<List<BooruPool>> fetchPools({int page = 1, int limit = 20}) async {
-    try {
-      final response = await dio.get(
-        '/pools.json',
-        queryParameters: {'page': page, 'limit': limit},
+    // 网络/认证错误向上抛出，让 UI 显示真实原因；「暂不支持」由默认空实现表达
+    final response = await dio.get(
+      '/pools.json',
+      queryParameters: {'page': page, 'limit': limit},
+    );
+    final data = response.data;
+    if (data is! List) return [];
+    return data.whereType<Map<String, dynamic>>().map((m) {
+      final ids = (m['post_ids'] as List? ?? [])
+          .map((i) => i.toString())
+          .toList();
+      return BooruPool(
+        id: m['id']?.toString() ?? '',
+        name: m['name']?.toString() ?? '',
+        description: m['description']?.toString() ?? '',
+        postCount: (m['post_count'] as int?) ?? ids.length,
+        postIds: ids,
       );
-      final data = response.data;
-      if (data is! List) return [];
-      return data.whereType<Map<String, dynamic>>().map((m) {
-        final ids = (m['post_ids'] as List? ?? [])
-            .map((i) => i.toString())
-            .toList();
-        return BooruPool(
-          id: m['id']?.toString() ?? '',
-          name: m['name']?.toString() ?? '',
-          description: m['description']?.toString() ?? '',
-          postCount: (m['post_count'] as int?) ?? ids.length,
-          postIds: ids,
-        );
-      }).where((p) => p.id.isNotEmpty).toList();
-    } catch (_) {
-      return [];
-    }
+    }).where((p) => p.id.isNotEmpty).toList();
   }
 
 }

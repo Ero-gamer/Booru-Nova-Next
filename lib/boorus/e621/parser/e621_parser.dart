@@ -5,8 +5,9 @@ class E621Parser {
 
   static List<BooruPost> parsePosts(
     String serverId,
-    List<dynamic> json,
-  ) {
+    List<dynamic> json, {
+    String baseUrl = 'https://e621.net',
+  }) {
     return json.whereType<Map<String, dynamic>>().map((post) {
       final id = post['id']?.toString() ?? '';
       // 嵌套字段可能是畸形类型（如字符串），安全转型避免整个列表崩溃
@@ -63,7 +64,7 @@ class E621Parser {
         rating: rating,
         score: score,
         source: source.isEmpty ? null : source,
-        postUrl: id,
+        postUrl: id.isEmpty ? null : '$baseUrl/posts/$id',
       );
     }).toList();
   }

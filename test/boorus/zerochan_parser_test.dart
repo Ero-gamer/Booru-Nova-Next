@@ -47,7 +47,7 @@ void main() {
       expect(p1.score, 0);
       expect(p1.source, 'https://example.com');
       expect(p1.uploader, 'uploader1');
-      expect(p1.postUrl, '5001');
+      expect(p1.postUrl, 'https://www.zerochan.net/5001');
 
       final p2 = posts[1];
       expect(p2.tags, isEmpty);

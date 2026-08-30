@@ -14,7 +14,8 @@ class ZerochanRepository extends BaseBooruRepository {
     final response = await dio.get(
       '/$tags',
       queryParameters: {
-        'json': null,
+        // 用真实值而不是 null：Dio 可能丢弃 null 参数，导致请求不带 json 标志而返回 HTML。
+        'json': '1',
         'p': query.page,
         'l': query.limit,
       },
@@ -26,7 +27,8 @@ class ZerochanRepository extends BaseBooruRepository {
     }
 
     final map = Map<String, dynamic>.from(data);
-    final posts = ZerochanParser.parsePosts(serverId, map);
+    final posts = ZerochanParser.parsePosts(serverId, map,
+        baseUrl: dio.options.baseUrl);
     final total = map['total'] as int? ?? 0;
     final hasMore = posts.isNotEmpty &&
         (map['pages'] as int? ?? 1) > query.page;
