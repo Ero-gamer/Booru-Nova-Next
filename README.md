@@ -2,9 +2,11 @@
 
 <p align="center"><img width="1000px" alt="BooruNova banner" src="docs/assets/banner.svg"></p>
 
-# BooruNova [![Awesome](https://awesome.re/badge-flat.svg)](https://awesome.re)
+# BooruNova
 
-**One app, every booru.** An open-source Android client for booru image boards.
+**One app, every booru.** The open-source Android client that speaks all 8 major
+booru engines (Danbooru, Gelbooru, Moebooru, Safebooru, e621, Sankaku, Zerochan,
+Rule34) — one search bar, one timeline, one place for favorites & downloads.
 
 English / [简体中文](README_cn.md)
 
@@ -13,6 +15,11 @@ English / [简体中文](README_cn.md)
 [![Language](https://img.shields.io/badge/language-Dart%20%2F%20Flutter-0175C2.svg)](https://flutter.dev)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 [![Release](https://img.shields.io/github/v/release/qingzhuo-cn/boorunova)](https://github.com/qingzhuo-cn/boorunova/releases)
+[![GitHub stars](https://img.shields.io/github/stars/qingzhuo-cn/boorunova?style=social)](https://github.com/qingzhuo-cn/boorunova)
+
+**📲 Try it now** — grab the latest APK from
+[**GitHub Releases**](https://github.com/qingzhuo-cn/boorunova/releases)
+(universal `arm64-v8a / x86_64`), or [run from source](#quick-start) in 3 commands.
 
 </div>
 
