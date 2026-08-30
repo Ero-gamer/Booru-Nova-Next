@@ -60,6 +60,25 @@ class BooruServer {
         'createdAt': createdAt.toIso8601String(),
       };
 
+  /// 备份导出用：剔除 apiKey / login，避免凭据随 JSON 备份文件明文外泄。
+  /// 导入侧也不从备份恢复凭据，需在应用内重新填写。
+  Map<String, dynamic> toBackupJson() => {
+        'id': id,
+        'name': name,
+        'baseUrl': baseUrl,
+        'type': type.value,
+        'createdAt': createdAt.toIso8601String(),
+      };
+
+  /// 规范化服务器基址：去掉末尾多余的斜杠，保留一个干净的可拼接 URL。
+  static String _normalizeBaseUrl(String url) {
+    var s = url.trim();
+    while (s.endsWith('/')) {
+      s = s.substring(0, s.length - 1);
+    }
+    return s;
+  }
+
   static BooruServer create({
     required String name,
     required String baseUrl,
@@ -70,7 +89,8 @@ class BooruServer {
     return BooruServer(
       id: const Uuid().v4(),
       name: name,
-      baseUrl: baseUrl,
+      // 去掉尾部斜杠，避免拼接 postUrl/API 路径时出现双斜杠（https://x//posts/1）
+      baseUrl: _normalizeBaseUrl(baseUrl),
       type: type,
       apiKey: apiKey,
       login: login,
