@@ -1,4 +1,6 @@
+import 'package:boorunova/presentation/l10n/app_strings.dart';
 import 'package:boorunova/presentation/provider/app_settings.dart';
+import 'package:boorunova/presentation/widgets/common/app_placeholders.dart' show SectionHeader;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -35,28 +37,35 @@ class _DownloadSettingsPageState extends ConsumerState<DownloadSettingsPage> {
   Widget build(BuildContext context) {
     final settings = ref.watch(settingsProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text('下载设置')),
+      appBar: AppBar(title: Text(T.downloadSettingsTitle)),
       body: ListView(children: [
+        SectionHeader(title: T.sectionQuality),
         ListTile(
-          title: const Text('下载质量'),
+          title: Text(T.downloadQuality),
           trailing: SegmentedButton<String>(
-            segments: const [
-              ButtonSegment(value: 'sample', label: Text('预览', style: TextStyle(fontSize: 12))),
-              ButtonSegment(value: 'original', label: Text('原图', style: TextStyle(fontSize: 12))),
+            segments: [
+              ButtonSegment(value: 'sample', label: Text(T.qualitySample, style: const TextStyle(fontSize: 12))),
+              ButtonSegment(value: 'original', label: Text(T.qualityOriginal, style: const TextStyle(fontSize: 12))),
             ],
             selected: {settings.downloadQuality},
             onSelectionChanged: (v) => ref.read(settingsProvider.notifier).setDownloadQuality(v.first),
           ),
         ),
+        SectionHeader(title: T.sectionPath),
         ListTile(
-          title: const Text('下载路径'),
-          subtitle: Text(settings.downloadPath.isNotEmpty ? settings.downloadPath : '默认: $_defaultPath', style: const TextStyle(fontSize: 11)),
+          title: Text(T.downloadPath),
+          subtitle: Text(
+            settings.downloadPath.isNotEmpty
+                ? settings.downloadPath
+                : '${T.defaultPathPrefix}$_defaultPath',
+            style: const TextStyle(fontSize: 11),
+          ),
           trailing: const Icon(Icons.folder_open),
           onTap: _pickPath,
         ),
         if (settings.downloadPath.isNotEmpty)
           ListTile(
-            title: const Text('重置为默认路径'),
+            title: Text(T.resetDefaultPath),
             trailing: const Icon(Icons.restore),
             onTap: () => ref.read(settingsProvider.notifier).setDownloadPath(''),
           ),

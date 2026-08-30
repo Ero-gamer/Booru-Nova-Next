@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:boorunova/data/repository/downloads/user_downloads_repo.dart';
 import 'package:boorunova/data/repository/history/user_history_repo.dart';
+import 'package:boorunova/presentation/l10n/app_strings.dart';
+import 'package:boorunova/presentation/widgets/common/app_placeholders.dart' show SectionHeader;
 import 'package:extended_image/extended_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -14,11 +16,12 @@ class DataStoragePage extends StatefulWidget {
 }
 
 class _DataStoragePageState extends State<DataStoragePage> {
-  String _cacheSize = '计算中...';
+  String _cacheSize = '';
 
   @override
   void initState() {
     super.initState();
+    _cacheSize = T.calculating;
     _calcCache();
   }
 
@@ -41,7 +44,7 @@ class _DataStoragePageState extends State<DataStoragePage> {
       }
       setState(() => _cacheSize = '${(size / 1048576).toStringAsFixed(1)} MB');
     } catch (_) {
-      setState(() => _cacheSize = '未知');
+      setState(() => _cacheSize = T.unknown);
     }
   }
 
@@ -59,7 +62,7 @@ class _DataStoragePageState extends State<DataStoragePage> {
       }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('已清除 $count 个缓存文件')),
+          SnackBar(content: Text('${T.clearedCacheFiles}$count${T.tempFiles}')),
         );
         await _calcCache();
       }
@@ -69,23 +72,35 @@ class _DataStoragePageState extends State<DataStoragePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('数据与存储')),
+      appBar: AppBar(title: Text(T.dataAndStorage)),
       body: ListView(children: [
+        SectionHeader(title: T.sectionCache),
         ListTile(
           leading: const Icon(Icons.storage),
-          title: const Text('缓存'),
-          subtitle: Text(_cacheSize),
-          trailing: TextButton(onPressed: _clearCache, child: const Text('清除')),
+          title: Text(T.cache),
+          subtitle: _cacheSize == T.calculating
+              ? Row(children: [
+                  const SizedBox(
+                    width: 12,
+                    height: 12,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(T.calculating, style: Theme.of(context).textTheme.bodySmall),
+                ])
+              : Text(_cacheSize),
+          trailing: TextButton(onPressed: _clearCache, child: Text(T.clearAction)),
         ),
         Consumer(
           builder: (context, ref, _) {
             final cache = PaintingBinding.instance.imageCache;
             final imgs = cache.currentSize;
             final imgBytes = cache.currentSizeBytes;
+            final mb = (imgBytes / 1048576).toStringAsFixed(1);
             return ListTile(
               leading: const Icon(Icons.image_outlined),
-              title: const Text('图片缓存'),
-              subtitle: Text('$imgs 张, ${(imgBytes / 1048576).toStringAsFixed(1)} MB'),
+              title: Text(T.imageCache),
+              subtitle: Text(T.isEn ? '$imgs images, $mb MB' : '$imgs 张, $mb MB'),
               trailing: TextButton(
                 onPressed: () {
                   cache.clear();
@@ -93,24 +108,25 @@ class _DataStoragePageState extends State<DataStoragePage> {
                   clearDiskCachedImages();
                   setState(() {});
                 },
-                child: const Text('清除'),
+                child: Text(T.clearAction),
               ),
             );
           },
         ),
+        SectionHeader(title: T.sectionRecords),
         Consumer(
           builder: (context, ref, _) {
             final historyCount = ref.watch(userHistoryRepoProvider).count;
             return ListTile(
               leading: const Icon(Icons.history),
-              title: const Text('浏览历史'),
-              subtitle: Text('$historyCount 条记录'),
+              title: Text(T.browsingHistory),
+              subtitle: Text('$historyCount ${T.recordsUnit}'),
               trailing: TextButton(
                 onPressed: () async {
                   await ref.read(userHistoryRepoProvider).clear();
                   ref.invalidate(userHistoryRepoProvider);
                 },
-                child: const Text('清除'),
+                child: Text(T.clearAction),
               ),
             );
           },
@@ -120,14 +136,14 @@ class _DataStoragePageState extends State<DataStoragePage> {
             final downloadCount = ref.watch(userDownloadsRepoProvider).count;
             return ListTile(
               leading: const Icon(Icons.download_outlined),
-              title: const Text('下载记录'),
-              subtitle: Text('$downloadCount 条记录'),
+              title: Text(T.downloadHistory),
+              subtitle: Text('$downloadCount ${T.recordsUnit}'),
               trailing: TextButton(
                 onPressed: () async {
                   await ref.read(userDownloadsRepoProvider).clear();
                   ref.invalidate(userDownloadsRepoProvider);
                 },
-                child: const Text('清除'),
+                child: Text(T.clearAction),
               ),
             );
           },

@@ -1,14 +1,15 @@
-import 'dart:ui';
-
 import 'package:boorunova/boorus/engine/booru_repository.dart';
 import 'package:boorunova/data/repository/booru/entity/post.dart';
 import 'package:boorunova/data/repository/favorites/user_favorite_repo.dart';
 import 'package:boorunova/foundation/util/batch_ops.dart';
 import 'package:boorunova/presentation/l10n/app_strings.dart';
+import 'package:boorunova/presentation/provider/app_settings.dart';
 import 'package:boorunova/presentation/provider/booru/batch_selection.dart';
 import 'package:boorunova/presentation/provider/booru/page_state.dart';
 import 'package:boorunova/presentation/provider/tags_blocker_state.dart';
 import 'package:boorunova/presentation/screens/home/search/search_bar.dart';
+import 'package:boorunova/presentation/widgets/common/app_placeholders.dart';
+import 'package:boorunova/presentation/widgets/common/glass.dart';
 import 'package:boorunova/presentation/widgets/timeline/timeline.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -67,6 +68,7 @@ class HomeContent extends ConsumerStatefulWidget {
 
 class _HomeContentState extends ConsumerState<HomeContent> {
   bool _batchDownloading = false;
+  String? _batchProgress;
   bool _searchCollapsed = false;
   final _scrollController = ScrollController();
 
@@ -135,12 +137,11 @@ class _HomeContentState extends ConsumerState<HomeContent> {
       _checkFillViewport();
     }
 
-    return Column(
+    // Stack 布局：瀑布流铺满全屏，玻璃搜索栏悬浮在内容上方
+    return Stack(
       children: [
-        Expanded(
-          child: Stack(
-            children: [
-            RefreshIndicator(
+        Positioned.fill(
+          child: RefreshIndicator(
                   onRefresh: () async {
                     selectionNotifier.clear();
                     await ref.read(booruPageStateProvider.notifier).refresh();
@@ -176,11 +177,11 @@ class _HomeContentState extends ConsumerState<HomeContent> {
                                     selectionNotifier
                                         .selectAll(filteredPosts.map((p) => p.id));
                                   },
-                                  child: const Text(T.selectAll),
+                                  child: Text(T.selectAll),
                                 ),
                                 TextButton(
                                   onPressed: selectionNotifier.clear,
-                                  child: const Text(T.clear),
+                                  child: Text(T.clear),
                                 ),
                               ],
                             ),
@@ -195,51 +196,24 @@ class _HomeContentState extends ConsumerState<HomeContent> {
                         )
                       else if (filteredPosts.isEmpty && pageState.error != null)
                         SliverFillRemaining(
-                          child: Center(
-                            child: Padding(
-                              padding: const EdgeInsets.all(32),
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(Icons.cloud_off, size: 48,
-                                      color: Theme.of(context).colorScheme.error.withOpacity(0.7)),
-                                  const SizedBox(height: 16),
-                                  Text(T.somethingWentWrong,
-                                      style: Theme.of(context).textTheme.titleMedium),
-                                  const SizedBox(height: 8),
-                                  Text(_friendlyError(pageState.error!),
-                                      textAlign: TextAlign.center,
-                                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                          color: Theme.of(context).colorScheme.onSurfaceVariant)),
-                                  const SizedBox(height: 24),
-                                  OutlinedButton.icon(
-                                    onPressed: () => ref.read(booruPageStateProvider.notifier).refresh(),
-                                    icon: const Icon(Icons.refresh),
-                                    label: const Text(T.retry),
-                                  ),
-                                ],
-                              ),
+                          child: EmptyState(
+                            icon: Icons.cloud_off,
+                            title: T.somethingWentWrong,
+                            hint: _friendlyError(pageState.error!),
+                            action: OutlinedButton.icon(
+                              onPressed: () =>
+                                  ref.read(booruPageStateProvider.notifier).refresh(),
+                              icon: const Icon(Icons.refresh),
+                              label: Text(T.retry),
                             ),
                           ),
                         )
                       else if (filteredPosts.isEmpty)
                         SliverFillRemaining(
-                          child: Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.image_search, size: 64,
-                                    color: Theme.of(context).colorScheme.primary.withOpacity(0.3)),
-                                const SizedBox(height: 16),
-                                Text(T.noSearchResults,
-                                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5))),
-                                const SizedBox(height: 8),
-                                Text(T.tryDifferentSearch,
-                                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.3))),
-                              ],
-                            ),
+                          child: EmptyState(
+                            icon: Icons.image_search,
+                            title: T.noSearchResults,
+                            hint: T.tryDifferentSearch,
                           ),
                         )
                       else ...[
@@ -252,7 +226,8 @@ class _HomeContentState extends ConsumerState<HomeContent> {
                           ),
                         ),
                         SliverPadding(
-                          padding: const EdgeInsets.fromLTRB(10, 0, 10, 16),
+                          // 底部留白让最后一排内容能滚出悬浮玻璃栏
+                          padding: const EdgeInsets.fromLTRB(10, 0, 10, 96),
                             sliver: Timeline(
                               key: ValueKey('grid_$gridCols'),
                               crossAxisCount: gridCols,
@@ -302,17 +277,14 @@ class _HomeContentState extends ConsumerState<HomeContent> {
                     ],
                   ),
                 ),
-              if (pageState.isLoading && filteredPosts.isNotEmpty)
-                    const SizedBox.shrink(),
-            ],
-          ),
-        ),
-        ClipRRect(
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-            child: Container(
-              decoration: BoxDecoration(color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.8)),
-              child: HomeSearchBar(
+              ),
+        // 底部悬浮玻璃搜索栏：内容从玻璃下方滚过，模糊才有实际效果
+        Positioned(
+          left: 12,
+          right: 12,
+          bottom: 12,
+          child: GlassContainer(
+            child: HomeSearchBar(
           leading: widget.favicon,
           collapsed: _searchCollapsed,
           currentQuery: currentQuery,
@@ -328,21 +300,26 @@ class _HomeContentState extends ConsumerState<HomeContent> {
             selectionNotifier.clear();
             ref.read(booruPageStateProvider.notifier).search(query);
           },
+            ),
           ),
         ),
-      ),
-    ),
         if (isSelectionMode)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 16),
-            child: _BatchActionBar(
-              selectedIds: selectedIds,
-              posts: filteredPosts,
-              isDownloading: _batchDownloading,
-              onDownload: () => _batchDownload(filteredPosts, selectedIds),
-              onFavorite: () => _batchFavorite(context, filteredPosts, selectedIds),
-              onShare: () => _batchShare(filteredPosts, selectedIds),
-              onClear: selectionNotifier.clear,
+          Positioned(
+            left: 12,
+            right: 12,
+            bottom: 84,
+            child: GlassContainer(
+              borderRadius: BorderRadius.circular(20),
+              child: _BatchActionBar(
+                selectedIds: selectedIds,
+                posts: filteredPosts,
+                isDownloading: _batchDownloading,
+                progress: _batchProgress,
+                onDownload: () => _batchDownload(filteredPosts, selectedIds),
+                onFavorite: () => _batchFavorite(context, filteredPosts, selectedIds),
+                onShare: () => _batchShare(filteredPosts, selectedIds),
+                onClear: selectionNotifier.clear,
+              ),
             ),
           ),
       ],
@@ -361,8 +338,23 @@ class _HomeContentState extends ConsumerState<HomeContent> {
         .toList();
     final ids = selected.map((p) => p.id).toList();
 
-    final result = await BatchOps.downloadAll(urls, ids);
-    setState(() => _batchDownloading = false);
+    final downloadPath = ref.read(settingsProvider).downloadPath;
+    final result = await BatchOps.downloadAll(
+      urls,
+      ids,
+      downloadPath: downloadPath,
+      onItemProgress: (done, total) {
+        if (mounted && _batchDownloading) {
+          setState(() => _batchProgress = '$done/$total');
+        }
+      },
+    );
+    if (mounted) {
+      setState(() {
+        _batchDownloading = false;
+        _batchProgress = null;
+      });
+    }
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -437,11 +429,13 @@ class _BatchActionBar extends StatelessWidget {
     required this.onFavorite,
     required this.onShare,
     required this.onClear,
+    this.progress,
   });
 
   final Set<String> selectedIds;
   final List<PostSummary> posts;
   final bool isDownloading;
+  final String? progress;
   final VoidCallback onDownload;
   final VoidCallback onFavorite;
   final VoidCallback onShare;
@@ -449,12 +443,10 @@ class _BatchActionBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 8,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-        child: Row(
+    // 外层由 GlassContainer 提供玻璃质感，这里只负责布局
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+      child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
             IconButton(
@@ -468,6 +460,12 @@ class _BatchActionBar extends StatelessWidget {
               tooltip: T.downloadSelected,
               onPressed: isDownloading ? null : onDownload,
             ),
+            if (isDownloading && progress != null)
+              Padding(
+                padding: const EdgeInsets.only(left: 4),
+                child: Text(progress!,
+                    style: const TextStyle(fontSize: 13)),
+              ),
             IconButton(
               icon: const Icon(Icons.favorite_outline),
               tooltip: T.favoriteSelected,
@@ -484,7 +482,6 @@ class _BatchActionBar extends StatelessWidget {
               onPressed: onClear,
             ),
           ],
-        ),
       ),
     );
   }

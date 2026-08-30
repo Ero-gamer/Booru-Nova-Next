@@ -9,6 +9,7 @@ import 'package:boorunova/presentation/provider/app_settings.dart';
 import 'package:boorunova/presentation/provider/booru/page_state.dart';
 import 'package:boorunova/presentation/screens/home/home_content.dart';
 import 'package:boorunova/presentation/screens/server/booru_site_template.dart';
+import 'package:boorunova/presentation/widgets/common/glass.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -121,11 +122,12 @@ class _HomePageState extends ConsumerState<HomePage> {
 
   Widget _serverIcon(BooruType type, {double size = 16}) {
     final template = BooruSiteTemplate.findByType(type);
+    final fallback = Theme.of(context).colorScheme.onSurfaceVariant;
     return CircleAvatar(
       radius: size / 2 + 2,
-      backgroundColor: (template?.color ?? Colors.grey).withOpacity(0.2),
+      backgroundColor: (template?.color ?? fallback).withOpacity(0.2),
       child: Icon(template?.icon ?? Icons.dns_outlined,
-          color: template?.color ?? Colors.grey, size: size),
+          color: template?.color ?? fallback, size: size),
     );
   }
 
@@ -187,7 +189,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                     Text(s.name, style: const TextStyle(fontSize: 13)),
                     if (isActive) ...[
                       const SizedBox(width: 6),
-                      const Icon(Icons.check, color: Colors.green, size: 14),
+                      Icon(Icons.check, color: Theme.of(context).colorScheme.primary, size: 14),
                     ],
                   ],
                 ),
@@ -225,7 +227,10 @@ class _HomePageState extends ConsumerState<HomePage> {
 
     return Scaffold(
       drawer: Drawer(
-        child: ListView(
+        // 背景交给 GlassDrawer 的磨砂层；这里透明，让抽屉滑出时透出下层
+        backgroundColor: Colors.transparent,
+        child: GlassDrawer(
+          child: ListView(
           padding: EdgeInsets.zero,
           children: [
             DrawerHeader(
@@ -251,42 +256,47 @@ class _HomePageState extends ConsumerState<HomePage> {
             ),
             ListTile(
               leading: const Icon(Icons.favorite_outline),
-              title: const Text(T.favorites),
+              title: Text(T.favorites),
               onTap: () { Navigator.pop(context); context.push('/favorites'); },
             ),
             ListTile(
               leading: const Icon(Icons.download_outlined),
-              title: const Text(T.downloads),
+              title: Text(T.downloads),
               onTap: () { Navigator.pop(context); context.push('/downloads'); },
             ),
             ListTile(
               leading: const Icon(Icons.history),
-              title: const Text(T.history),
+              title: Text(T.history),
               onTap: () { Navigator.pop(context); context.push('/history'); },
             ),
             const Divider(),
             ListTile(
               leading: const Icon(Icons.dns_outlined),
-              title: const Text(T.servers),
+              title: Text(T.servers),
               onTap: () { Navigator.pop(context); context.push('/servers'); },
             ),
             ListTile(
               leading: const Icon(Icons.block_outlined),
-              title: const Text('黑名单'),
+              title: Text(T.blacklist),
               onTap: () { Navigator.pop(context); context.push('/blacklist'); },
             ),
             const Divider(),
             ListTile(
               leading: const Icon(Icons.settings_outlined),
-              title: const Text(T.settings),
+              title: Text(T.settings),
               onTap: () { Navigator.pop(context); context.push('/settings'); },
             ),
           ],
         ),
+        ),
       ),
       drawerEdgeDragWidth: 40,
       endDrawer: Drawer(
-        child: ListView(
+        // 背景交给 GlassDrawer，透明让下层内容在滑出时透出
+        backgroundColor: Colors.transparent,
+        child: GlassDrawer(
+          right: true,
+          child: ListView(
           padding: EdgeInsets.zero,
           children: [
             DrawerHeader(
@@ -327,28 +337,31 @@ class _HomePageState extends ConsumerState<HomePage> {
             ),
             ListTile(
               leading: const Icon(Icons.explore_outlined),
-              title: const Text('探索'),
+              title: Text(T.explore),
               onTap: () { Navigator.pop(context); context.push('/explore'); },
             ),
-            ListTile(
-              leading: const Icon(Icons.collections_outlined),
-              title: const Text('图集'),
-              onTap: () { Navigator.pop(context); context.push('/pools'); },
-            ),
+            // 图集仅在实际实现了 fetchPools 的引擎（danbooru/e621/moebooru）显示
+            if (_activeServer != null && _hasCapability((c) => c.pools))
+              ListTile(
+                leading: const Icon(Icons.collections_outlined),
+                title: Text(T.pools),
+                onTap: () { Navigator.pop(context); context.push('/pools'); },
+              ),
             const Divider(),
             if (_activeServer != null && _hasCapability((c) => c.forums))
               ListTile(
                 leading: const Icon(Icons.forum_outlined),
-                title: const Text('论坛'),
+                title: Text(T.forum),
                 onTap: () { Navigator.pop(context); context.push('/forum'); },
               ),
             if (_activeServer != null && _hasCapability((c) => c.artistPages))
               ListTile(
                 leading: const Icon(Icons.palette_outlined),
-                title: const Text('艺术家'),
+                title: Text(T.artists),
                 onTap: () { Navigator.pop(context); context.push('/artists'); },
               ),
           ],
+        ),
         ),
       ),
       appBar: AppBar(
@@ -385,7 +398,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                   FilledButton.icon(
                     onPressed: () => context.push('/servers'),
                     icon: const Icon(Icons.add),
-                    label: const Text(T.addServer),
+                    label: Text(T.addServer),
                   ),
                 ],
               ),

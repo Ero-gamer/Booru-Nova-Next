@@ -4,7 +4,6 @@ import 'package:boorunova/data/repository/favorites/user_favorite_repo.dart';
 import 'package:boorunova/presentation/l10n/app_strings.dart';
 import 'package:boorunova/presentation/provider/booru/page_state.dart';
 import 'package:boorunova/presentation/provider/tags_blocker_state.dart';
-import 'package:boorunova/presentation/screens/post/post_viewer.dart';
 import 'package:boorunova/presentation/widgets/media/video_viewer.dart';
 import 'package:extended_image/extended_image.dart';
 import 'package:flutter/material.dart';
@@ -55,7 +54,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
     ref.read(tagsBlockerStateProvider.notifier).pushAll(tags: tags);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('已屏蔽标签')),
+        SnackBar(content: Text(T.blockTagsDone)),
       );
     }
   }
@@ -66,17 +65,17 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
     setState(_selectedTags.clear);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('已复制标签')),
+        SnackBar(content: Text(T.copiedTags)),
       );
     }
   }
 
   void _openPostViewer(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => PostViewer(posts: [widget.post], initialIndex: 0),
-      ),
-    );
+    // 走 go_router 的 /post/:id 路由，保持返回栈一致（与首页等其他入口一致）。
+    context.push('/post/${widget.post.id}', extra: {
+      'posts': [widget.post],
+      'initialIndex': 0,
+    });
   }
 
   String _categoryLabel(String key) {
@@ -140,7 +139,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text(T.postDetails),
+        title: Text(T.postDetails),
         actions: [
           IconButton(
             icon: const Icon(Icons.share_outlined),
@@ -185,7 +184,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                             return const Center(child: CircularProgressIndicator());
                           }
                           if (state.extendedImageLoadState == LoadState.failed) {
-                            return const Center(child: Icon(Icons.broken_image, color: Colors.white54, size: 48));
+                            return Center(child: Icon(Icons.broken_image, color: theme.colorScheme.onSurfaceVariant, size: 48));
                           }
                           return state.completedWidget;
                         },
@@ -220,7 +219,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                     Text('${T.tags} (${post.tags.length})', style: theme.textTheme.titleSmall),
                     if (_selectedTags.isNotEmpty) ...[
                       const Spacer(),
-                      Text('${_selectedTags.length} 已选', style: const TextStyle(fontSize: 12)),
+                      Text('${_selectedTags.length} 已选', style: theme.textTheme.bodySmall),
                     ],
                   ]),
                   const SizedBox(height: 12),
@@ -243,7 +242,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                     child: FilledButton.icon(
                       onPressed: () => _openPostViewer(context),
                       icon: const Icon(Icons.open_in_full),
-                      label: const Text(T.openFullViewer),
+                      label: Text(T.openFullViewer),
                     ),
                   )),
                   const SizedBox(height: 16),
@@ -264,28 +263,28 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
             child: const Icon(Icons.search, size: 18),
             backgroundColor: theme.colorScheme.tertiary,
             foregroundColor: theme.colorScheme.onTertiary,
-            label: '搜索',
+            label: T.searchAction,
             onTap: _searchSelected,
           ),
           SpeedDialChild(
             child: const Icon(Icons.add, size: 18),
             backgroundColor: theme.colorScheme.secondary,
             foregroundColor: theme.colorScheme.onSecondary,
-            label: '追加',
+            label: T.appendAction,
             onTap: _addToSearch,
           ),
           SpeedDialChild(
             child: const Icon(Icons.block, size: 18),
-            backgroundColor: Colors.orange,
-            foregroundColor: Colors.white,
-            label: '屏蔽',
+            backgroundColor: theme.colorScheme.error,
+            foregroundColor: theme.colorScheme.onError,
+            label: T.blockAction,
             onTap: _blockSelected,
           ),
           SpeedDialChild(
             child: const Icon(Icons.copy, size: 18),
-            backgroundColor: Colors.blueGrey,
-            foregroundColor: Colors.white,
-            label: '复制',
+            backgroundColor: theme.colorScheme.primary,
+            foregroundColor: theme.colorScheme.onPrimary,
+            label: T.copyAction,
             onTap: _copySelected,
           ),
         ],

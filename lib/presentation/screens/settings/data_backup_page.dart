@@ -8,8 +8,10 @@ import 'package:boorunova/data/repository/search_history/search_history_repo.dar
 import 'package:boorunova/data/repository/server/entity/server.dart';
 import 'package:boorunova/data/repository/server/user_server_repo.dart';
 import 'package:boorunova/data/repository/tags_blocker/entity/booru_tag.dart';
+import 'package:boorunova/presentation/l10n/app_strings.dart';
 import 'package:boorunova/presentation/provider/app_settings.dart';
 import 'package:boorunova/presentation/provider/tags_blocker_state.dart';
+import 'package:boorunova/presentation/widgets/common/app_placeholders.dart' show SectionHeader;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -31,7 +33,9 @@ class DataBackupPage extends ConsumerWidget {
       'timestamp': DateTime.now().toIso8601String(),
       'data': {
         'settings': settings.toJson(),
-        'servers': servers.map((s) => s.toJson()).toList(),
+        'serverCount': servers.length,
+        // 导出不含凭据（apiKey/login），见 BooruServer.toBackupJson。
+        'servers': servers.map((s) => s.toBackupJson()).toList(),
         'blockedTags': blocked.values.map((t) => t.toJson()).toList(),
         'favorites': favorites.map((f) => f.toJson()).toList(),
         'searchHistory': history,
@@ -54,15 +58,34 @@ class DataBackupPage extends ConsumerWidget {
       final json = jsonDecode(await file.readAsString()) as Map<String, dynamic>;
       final data = json['data'] as Map<String, dynamic>;
 
-      // Import servers
+      // 版本校验：拒绝高版本备份，避免用新数据误写旧结构
+      final version = (json['version'] as num?)?.toInt() ?? 1;
+      const supportedVersion = 1;
+      if (version > supportedVersion) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(T.isEn
+                ? 'Backup is newer than this app supports (v$supportedVersion)'
+                : '备份版本过新，当前应用最高支持 v$supportedVersion'),
+          ));
+        }
+        return;
+      }
+
+      // Import servers（逐条容错：坏记录跳过，不整体中止）
       if (data['servers'] != null) {
         final list = data['servers'] as List;
         final repo = ref.read(userServerRepoProvider);
         final existing = repo.getAll().toList();
         for (final item in list) {
-          final server = BooruServer.fromJson(Map<String, dynamic>.from(item as Map));
-          if (!existing.any((e) => e.id == server.id)) {
-            await repo.save(server);
+          try {
+            final server =
+                BooruServer.fromJson(Map<String, dynamic>.from(item as Map));
+            if (!existing.any((e) => e.id == server.id)) {
+              await repo.save(server);
+            }
+          } catch (_) {
+            // 跳过损坏的单条服务器记录
           }
         }
         ref.invalidate(userServerRepoProvider);
@@ -128,11 +151,11 @@ class DataBackupPage extends ConsumerWidget {
       }
 
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('备份已导入')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(T.backupImported)));
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('导入失败: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${T.importFailed}: $e')));
       }
     }
   }
@@ -146,39 +169,36 @@ class DataBackupPage extends ConsumerWidget {
     final downloads = ref.watch(userDownloadsRepoProvider).getAll().length;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('数据备份恢复')),
+      appBar: AppBar(title: Text(T.backupTitle)),
       body: ListView(children: [
-        const Padding(
-          padding: EdgeInsets.fromLTRB(16, 16, 16, 4),
-          child: Text('备份内容', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Colors.grey)),
-        ),
-        ListTile(title: const Text('服务器'), trailing: Text('${servers.length} 个')),
-        ListTile(title: const Text('屏蔽标签'), trailing: Text('${blocked.length} 条')),
-        ListTile(title: const Text('收藏'), trailing: Text('$favorites 条')),
-        ListTile(title: const Text('搜索历史'), trailing: Text('$history 条')),
-        ListTile(title: const Text('下载记录'), trailing: Text('$downloads 条')),
+        SectionHeader(title: T.backupContentHeader),
+        ListTile(title: Text(T.servers), trailing: Text('${servers.length}${T.serversCountUnit}')),
+        ListTile(title: Text(T.blacklist), trailing: Text('${blocked.length}${T.recordsUnit}')),
+        ListTile(title: Text(T.favorites), trailing: Text('$favorites${T.recordsUnit}')),
+        ListTile(title: Text(T.searchHistoryEntry), trailing: Text('$history${T.recordsUnit}')),
+        ListTile(title: Text(T.downloadHistory), trailing: Text('$downloads${T.recordsUnit}')),
         const Divider(),
         ListTile(
           leading: const Icon(Icons.file_upload_outlined),
-          title: const Text('导出备份'),
-          subtitle: const Text('保存为 JSON 文件'),
+          title: Text(T.exportBackup),
+          subtitle: Text(T.exportBackupSub),
           onTap: () async {
             try {
               final path = await _exportData(ref);
               if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('已导出: $path')));
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${T.exportedTo}$path')));
               }
             } catch (e) {
               if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('导出失败: $e')));
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${T.exportFailed}: $e')));
               }
             }
           },
         ),
         ListTile(
           leading: const Icon(Icons.file_download_outlined),
-          title: const Text('导入备份'),
-          subtitle: const Text('从 JSON 文件恢复'),
+          title: Text(T.importBackup),
+          subtitle: Text(T.importBackupSub),
           onTap: () => _importData(context, ref),
         ),
       ]),

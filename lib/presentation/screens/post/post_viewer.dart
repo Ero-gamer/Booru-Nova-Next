@@ -8,6 +8,7 @@ import 'package:boorunova/foundation/util/image_downloader.dart';
 import 'package:boorunova/presentation/l10n/app_strings.dart';
 import 'package:boorunova/presentation/provider/app_settings.dart';
 import 'package:boorunova/presentation/provider/download_progress.dart';
+import 'package:boorunova/presentation/widgets/common/glass.dart';
 import 'package:boorunova/presentation/widgets/media/video_viewer.dart';
 import 'package:extended_image/extended_image.dart';
 import 'package:flutter/material.dart';
@@ -121,7 +122,10 @@ class _PostViewerState extends ConsumerState<PostViewer>
             final fade = 1.0 - (offset.abs() / 400).clamp(0.0, 1.0);
             return Opacity(opacity: fade, child: child);
           },
-          child: AppBar(
+          child: GlassContainer(
+            borderRadius: BorderRadius.zero,
+            tint: Colors.black,
+            child: AppBar(
             backgroundColor: Colors.transparent,
             foregroundColor: Colors.white,
             elevation: 0,
@@ -133,7 +137,7 @@ class _PostViewerState extends ConsumerState<PostViewer>
           if (widget.posts.length > 1 && !isVideo)
             IconButton(
               icon: Icon(_slideshowPlaying ? Icons.pause_circle_filled : Icons.auto_awesome),
-              tooltip: _slideshowPlaying ? '停止自动切换' : '自动切换',
+              tooltip: _slideshowPlaying ? T.stopSlideshow : T.autoSlideshow,
               onPressed: _toggleSlideshow,
             ),
           IconButton(
@@ -150,6 +154,7 @@ class _PostViewerState extends ConsumerState<PostViewer>
             icon: _saving
                 ? _DownloadProgressIcon(post: post)
                 : const Icon(Icons.download_outlined),
+            tooltip: T.downloads,
             onPressed: _saving ? null : () => _download(post),
           ),
           IconButton(
@@ -157,6 +162,7 @@ class _PostViewerState extends ConsumerState<PostViewer>
               isFav ? Icons.favorite : Icons.favorite_border,
               color: isFav ? Colors.red : Colors.white,
             ),
+            tooltip: T.favorites,
             onPressed: () async {
               final repo = ref.read(userFavoritesRepoProvider);
               await repo.toggle(BooruPost(
@@ -183,6 +189,7 @@ class _PostViewerState extends ConsumerState<PostViewer>
             },
           ),
         ],
+            ),
           ),
         ),
       ),
@@ -330,7 +337,9 @@ class _PostViewerState extends ConsumerState<PostViewer>
   }
 
   Future<void> _download(PostSummary post) async {
-    final quality = ref.read(settingsProvider).downloadQuality;
+    final settings = ref.read(settingsProvider);
+    final quality = settings.downloadQuality;
+    // 进度图标按真实下载 URL 查询，与这里保持一致（quality==sample 用 sampleUrl）。
     final url = quality == 'sample' && post.sampleUrl.isNotEmpty
         ? post.sampleUrl
         : (post.originalUrl.isNotEmpty ? post.originalUrl : post.sampleUrl);
@@ -346,8 +355,11 @@ class _PostViewerState extends ConsumerState<PostViewer>
       width: post.width,
       height: post.height,
       onProgress: (p) => progressNotifier.update(url, p),
+      downloadPath: settings.downloadPath,
     );
-    setState(() => _saving = false);
+    if (mounted) {
+      setState(() => _saving = false);
+    }
 
     if (result.success) {
       progressNotifier.complete(url);
@@ -375,7 +387,12 @@ class _DownloadProgressIcon extends ConsumerWidget {
   final PostSummary post;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final url = post.originalUrl.isNotEmpty ? post.originalUrl : post.sampleUrl;
+    // 与 _download 使用同一 URL 选择逻辑，保证 quality==sample 时进度也能命中。
+    final settings = ref.watch(settingsProvider);
+    final url = settings.downloadQuality == 'sample' &&
+            post.sampleUrl.isNotEmpty
+        ? post.sampleUrl
+        : (post.originalUrl.isNotEmpty ? post.originalUrl : post.sampleUrl);
     final p = ref.watch(downloadProgressProvider).where((d) => d.url == url).firstOrNull;
     return SizedBox(width: 20, height: 20, child: CircularProgressIndicator(value: (p?.progress ?? 0) > 0 ? p!.progress : null, strokeWidth: 2, color: Colors.white));
   }

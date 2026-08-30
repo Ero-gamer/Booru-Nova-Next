@@ -13,7 +13,7 @@ class FavoritesPage extends ConsumerWidget {
     final favorites = repo.getAll();
 
     return Scaffold(
-      appBar: AppBar(title: const Text(T.favorites)),
+      appBar: AppBar(title: Text(T.favorites)),
       body: favorites.isEmpty
           ? Center(
               child: Column(
@@ -135,15 +135,18 @@ class _FavoriteDetailSheet extends ConsumerWidget {
           const SizedBox(height: 16),
           Row(
             children: [
-              Text('Rating: ${post.rating.toUpperCase()}'),
+              Text('${T.rating}: ${post.rating.toUpperCase()}',
+                  style: Theme.of(context).textTheme.bodyMedium),
               const SizedBox(width: 16),
-              Text('Score: ${post.score}'),
+              Text('${T.score}: ${post.score}',
+                  style: Theme.of(context).textTheme.bodyMedium),
               const Spacer(),
               IconButton(
                 icon: Icon(
                   isFav ? Icons.favorite : Icons.favorite_border,
                   color: isFav ? Colors.red : null,
                 ),
+                tooltip: T.favorites,
                 onPressed: () async {
                   await repo.toggle(post);
                   ref.invalidate(userFavoritesRepoProvider);
@@ -154,8 +157,7 @@ class _FavoriteDetailSheet extends ConsumerWidget {
           ),
           if (post.tags.isNotEmpty) ...[
             const SizedBox(height: 8),
-            const Text('Tags',
-                style: TextStyle(fontWeight: FontWeight.w600)),
+            Text(T.tags, style: const TextStyle(fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
             Wrap(
               spacing: 6,

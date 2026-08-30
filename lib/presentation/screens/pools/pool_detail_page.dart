@@ -1,5 +1,7 @@
 import 'package:boorunova/boorus/engine/booru_repository.dart';
+import 'package:boorunova/presentation/l10n/app_strings.dart';
 import 'package:boorunova/presentation/provider/booru/page_state.dart';
+import 'package:boorunova/presentation/widgets/common/app_placeholders.dart';
 import 'package:boorunova/presentation/widgets/timeline/timeline.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -79,27 +81,23 @@ class _PoolDetailPageState extends ConsumerState<PoolDetailPage> {
     }
     if (_error != null) {
       return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.error_outline,
-                size: 64,
-                color: theme.colorScheme.onSurface.withOpacity(0.3)),
-            const SizedBox(height: 16),
-            Text(_error!,
-                style: theme.textTheme.titleMedium?.copyWith(
-                    color: theme.colorScheme.onSurface.withOpacity(0.5))),
-            const SizedBox(height: 16),
-            TextButton(onPressed: _load, child: const Text('重试')),
-          ],
+        child: EmptyState(
+          icon: Icons.error_outline,
+          title: _error!,
+          action: OutlinedButton.icon(
+            onPressed: _load,
+            icon: const Icon(Icons.refresh),
+            label: Text(T.retry),
+          ),
         ),
       );
     }
     if (_posts.isEmpty) {
       return Center(
-        child: Text('该图集暂无内容',
-            style: theme.textTheme.titleMedium?.copyWith(
-                color: theme.colorScheme.onSurface.withOpacity(0.5))),
+        child: EmptyState(
+          icon: Icons.collections_bookmark_outlined,
+          title: T.poolEmpty,
+        ),
       );
     }
     return RefreshIndicator(

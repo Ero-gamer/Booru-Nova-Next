@@ -1,4 +1,6 @@
+import 'package:boorunova/presentation/l10n/app_strings.dart';
 import 'package:boorunova/presentation/provider/app_settings.dart';
+import 'package:boorunova/presentation/widgets/common/app_placeholders.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -10,26 +12,27 @@ class GesturesPage extends ConsumerWidget {
     final s = ref.watch(settingsProvider);
     final n = ref.read(settingsProvider.notifier);
     return Scaffold(
-      appBar: AppBar(title: const Text('手势')),
+      appBar: AppBar(title: Text(T.gestures)),
       body: ListView(children: [
-        _header('图片查看器'),
-        _tile('下滑动作', s.swipeDownAction == 'detail' ? '查看详情' : '关闭', ['close', 'detail'], ['关闭', '查看详情'], n.setSwipeDownAction, s.swipeDownAction),
-        _tile('单击图片', s.tapAction == 'detail' ? '查看详情' : '无', ['detail', 'none'], ['查看详情', '无'], n.setTapAction, s.tapAction),
-        _tile('双击图片', s.doubleTapAction == 'fav' ? '收藏' : '缩放', ['zoom', 'fav'], ['缩放', '收藏'], n.setDoubleTapAction, s.doubleTapAction),
-        _tile('长按图片', s.longPressAction == 'fav' ? '收藏' : '无', ['fav', 'none'], ['收藏', '无'], n.setLongPressAction, s.longPressAction),
+        SectionHeader(title: T.sectionViewer),
+        _tile(T.swipeDownAction, s.swipeDownAction, {'close': T.actionClose, 'detail': T.actionDetail}, n.setSwipeDownAction, s.swipeDownAction),
+        _tile(T.tapAction, s.tapAction, {'detail': T.actionDetail, 'none': T.actionNone}, n.setTapAction, s.tapAction),
+        _tile(T.doubleTapAction, s.doubleTapAction, {'zoom': T.actionZoom, 'fav': T.actionFav}, n.setDoubleTapAction, s.doubleTapAction),
+        _tile(T.longPressAction, s.longPressAction, {'fav': T.actionFav, 'none': T.actionNone}, n.setLongPressAction, s.longPressAction),
       ]),
     );
   }
 
-  Widget _header(String t) => Padding(padding: const EdgeInsets.fromLTRB(16, 16, 16, 4), child: Text(t, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Colors.grey)));
-
-  Widget _tile(String title, String subtitle, List<String> vals, List<String> labels, void Function(String) onChanged, String current) {
+  Widget _tile(String title, String current, Map<String, String> labels,
+      void Function(String) onChanged, String value) {
     return ListTile(
       title: Text(title, style: const TextStyle(fontSize: 14)),
-      subtitle: Text(subtitle, style: const TextStyle(fontSize: 12)),
+      subtitle: Text(labels[value] ?? value, style: const TextStyle(fontSize: 12)),
       trailing: DropdownButton<String>(
         value: current, underline: const SizedBox(),
-        items: List.generate(vals.length, (i) => DropdownMenuItem(value: vals[i], child: Text(labels[i], style: const TextStyle(fontSize: 13)))),
+        items: labels.entries
+            .map((e) => DropdownMenuItem(value: e.key, child: Text(e.value, style: const TextStyle(fontSize: 13))))
+            .toList(),
         onChanged: (v) { if (v != null) onChanged(v); },
       ),
     );

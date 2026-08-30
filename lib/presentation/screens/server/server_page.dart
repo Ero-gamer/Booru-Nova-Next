@@ -2,10 +2,9 @@ import 'package:boorunova/data/repository/server/entity/server.dart';
 import 'package:boorunova/data/repository/server/user_server_repo.dart';
 import 'package:boorunova/presentation/l10n/app_strings.dart';
 import 'package:boorunova/presentation/screens/server/booru_site_template.dart';
-import 'package:boorunova/presentation/screens/server/server_editor_page.dart';
-import 'package:boorunova/presentation/screens/server/server_probe_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 class ServerPage extends ConsumerStatefulWidget {
   const ServerPage({super.key});
@@ -25,12 +24,12 @@ class _ServerPageState extends ConsumerState<ServerPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text(T.servers),
+        title: Text(T.servers),
         actions: [
           if (servers.length >= 2)
             IconButton(
               icon: Icon(_reorderMode ? Icons.check : Icons.format_list_numbered),
-              tooltip: _reorderMode ? '完成' : '排序',
+              tooltip: _reorderMode ? T.done : T.reorder,
               onPressed: () => setState(() => _reorderMode = !_reorderMode),
             ),
         ],
@@ -38,9 +37,7 @@ class _ServerPageState extends ConsumerState<ServerPage> {
       floatingActionButton: FloatingActionButton(
         heroTag: 'custom_server',
         onPressed: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const ServerScanPage()),
-          );
+          context.push('/servers/scan');
         },
         child: const Icon(Icons.add),
       ),
@@ -104,9 +101,7 @@ class _ServerPageState extends ConsumerState<ServerPage> {
                         final existing = servers.firstWhere((s) => s.type == t.type);
                         _editServer(existing);
                       } else {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(builder: (_) => ServerEditorPage(template: t)),
-                        );
+                        context.push('/servers/editor', extra: {'template': t});
                       }
                     },
                   );
@@ -117,25 +112,23 @@ class _ServerPageState extends ConsumerState<ServerPage> {
   }
 
   void _editServer(BooruServer server) {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => ServerEditorPage(serverId: server.id)),
-    );
+    context.push('/servers/editor', extra: {'serverId': server.id});
   }
 
   Future<void> _delete(BuildContext context, WidgetRef ref, BooruServer server) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text(T.removeServer),
+        title: Text(T.removeServer),
         content: Text('${T.deleteConfirm}${server.name}${T.deleteConfirmEnd}'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text(T.cancel),
+            child: Text(T.cancel),
           ),
           FilledButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text(T.delete),
+            child: Text(T.delete),
           ),
         ],
       ),
@@ -171,12 +164,13 @@ class _ServerTile extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (dragHandle)
-            const Icon(Icons.drag_handle, color: Colors.grey, size: 20),
+            Icon(Icons.drag_handle,
+                color: Theme.of(context).colorScheme.onSurfaceVariant, size: 20),
           PopupMenuButton<String>(
             onSelected: (v) => v == 'edit' ? onEdit() : onDelete(),
             itemBuilder: (_) => [
-              const PopupMenuItem(value: 'edit', child: Text(T.edit)),
-              const PopupMenuItem(value: 'delete', child: Text(T.delete)),
+              PopupMenuItem(value: 'edit', child: Text(T.edit)),
+              PopupMenuItem(value: 'delete', child: Text(T.delete)),
             ],
           ),
         ],
@@ -206,7 +200,9 @@ class _TemplateTile extends StatelessWidget {
           maxLines: 1, overflow: TextOverflow.ellipsis),
       trailing: Icon(
         added ? Icons.check_circle : Icons.add_circle_outline,
-        color: added ? Colors.green : Colors.grey,
+        color: added
+            ? Theme.of(context).colorScheme.primary
+            : Theme.of(context).colorScheme.onSurfaceVariant,
         size: 20,
       ),
       onTap: onTap,

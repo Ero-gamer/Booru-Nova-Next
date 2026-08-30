@@ -6,6 +6,7 @@ import 'package:boorunova/presentation/l10n/app_strings.dart';
 import 'package:boorunova/presentation/screens/server/booru_site_template.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 class ServerEditorPage extends ConsumerStatefulWidget {
   const ServerEditorPage({super.key, this.serverId, this.template, this.initialUrl, this.initialName, this.initialType});
@@ -83,7 +84,7 @@ class _ServerEditorPageState extends ConsumerState<ServerEditorPage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(false),
-              child: const Text(T.cancel),
+              child: Text(T.cancel),
             ),
             FilledButton(
               onPressed: () => Navigator.of(ctx).pop(true),
@@ -116,7 +117,7 @@ class _ServerEditorPageState extends ConsumerState<ServerEditorPage> {
 
     if (mounted) {
       final container = ProviderScope.containerOf(context, listen: false);
-      Navigator.of(context).pop();
+      context.pop();
       // 延迟到退出转场结束后再刷新列表：立即 invalidate 会让 ServerPage
       // 在 pop 转场期间重建，列表结构突变时残留 Ink 动画在 sliver 子节点上
       // 绘制会触发空指针崩溃（release 下表现为整页空白）
@@ -139,7 +140,7 @@ class _ServerEditorPageState extends ConsumerState<ServerEditorPage> {
           children: [
             TextFormField(
               controller: _nameController,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: T.serverName,
                 hintText: T.serverNameHint,
               ),
@@ -149,7 +150,7 @@ class _ServerEditorPageState extends ConsumerState<ServerEditorPage> {
             const SizedBox(height: 16),
             TextFormField(
               controller: _urlController,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: T.serverUrl,
                 hintText: T.serverUrlHint,
               ),
@@ -169,9 +170,9 @@ class _ServerEditorPageState extends ConsumerState<ServerEditorPage> {
             const SizedBox(height: 16),
             DropdownButtonFormField<BooruType>(
               value: _selectedType,
-              decoration: const InputDecoration(
-                labelText: '引擎类型',
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                labelText: T.engineType,
+                border: const OutlineInputBorder(),
                 isDense: true,
               ),
               items: [
@@ -208,7 +209,7 @@ class _ServerEditorPageState extends ConsumerState<ServerEditorPage> {
             const SizedBox(height: 8),
             TextFormField(
               controller: _apiKeyController,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: T.apiKey,
                 hintText: T.apiKeyHint,
               ),
@@ -217,7 +218,7 @@ class _ServerEditorPageState extends ConsumerState<ServerEditorPage> {
             const SizedBox(height: 16),
             TextFormField(
               controller: _loginController,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: T.login,
                 hintText: T.loginHint,
               ),

@@ -1,9 +1,9 @@
 import 'package:boorunova/boorus/engine/booru_type.dart';
 import 'package:boorunova/boorus/engine/registry.dart';
 import 'package:boorunova/presentation/l10n/app_strings.dart';
-import 'package:boorunova/presentation/screens/server/server_editor_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 class ServerScanPage extends ConsumerStatefulWidget {
   const ServerScanPage({super.key, this.initialUrl = ''});
@@ -19,6 +19,7 @@ class _ServerScanPageState extends ConsumerState<ServerScanPage> {
   final _logs = <_LogEntry>[];
   bool _scanning = false;
   bool _done = false;
+  bool _cancelRequested = false;
   BooruType? _result;
 
   @override
@@ -47,6 +48,7 @@ class _ServerScanPageState extends ConsumerState<ServerScanPage> {
       _scanning = true;
       _done = false;
       _result = null;
+      _cancelRequested = false;
       _logs.clear();
     });
 
@@ -56,6 +58,9 @@ class _ServerScanPageState extends ConsumerState<ServerScanPage> {
     _addLog('> engines: ${engines.length}', LogType.info);
 
     for (final type in engines) {
+      // 用户点「取消」后终止后续探测，避免后台仍逐引擎跑完全部。
+      if (_cancelRequested) break;
+
       final engine = registry.get(type);
       if (engine == null) continue;
 
@@ -80,11 +85,17 @@ class _ServerScanPageState extends ConsumerState<ServerScanPage> {
       }
     }
 
-    _addLog('> scan done: no match found', LogType.fail);
-    setState(() {
-      _scanning = false;
-      _done = true;
-    });
+    if (_cancelRequested) {
+      _addLog('> scan cancelled', LogType.info);
+    } else {
+      _addLog('> scan done: no match found', LogType.fail);
+    }
+    if (mounted) {
+      setState(() {
+        _scanning = false;
+        _done = true;
+      });
+    }
   }
 
   void _addLog(String msg, LogType type) {
@@ -99,12 +110,13 @@ class _ServerScanPageState extends ConsumerState<ServerScanPage> {
     final first = _logs.isEmpty;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('服务器探测'),
+        title: Text(T.scanTitle),
         leading: _scanning
             ? null
             : IconButton(
                 icon: const Icon(Icons.close),
-                onPressed: () => Navigator.of(context).pop(),
+                tooltip: T.scanClose,
+                onPressed: () => context.pop(),
               ),
       ),
       body: Column(
@@ -112,9 +124,15 @@ class _ServerScanPageState extends ConsumerState<ServerScanPage> {
           if (_scanning)
             const LinearProgressIndicator(),
           if (first && !_scanning)
-            const Padding(
-              padding: EdgeInsets.all(32),
-              child: Center(child: Text('点击"探测"开始匹配引擎', style: TextStyle(color: Colors.grey))),
+            Padding(
+              padding: const EdgeInsets.all(32),
+              child: Center(
+                child: Text(T.scanIdleHint,
+                    style: TextStyle(
+                        color: Theme.of(context)
+                            .colorScheme
+                            .onSurfaceVariant)),
+              ),
             ),
           Expanded(
             child: Container(
@@ -154,10 +172,10 @@ class _ServerScanPageState extends ConsumerState<ServerScanPage> {
                   Expanded(
                     child: TextField(
                       controller: _urlController,
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: T.serverUrl,
                         hintText: T.serverUrlHint,
-                        border: OutlineInputBorder(),
+                        border: const OutlineInputBorder(),
                         isDense: true,
                       ),
                       keyboardType: TextInputType.url,
@@ -168,30 +186,29 @@ class _ServerScanPageState extends ConsumerState<ServerScanPage> {
                   const SizedBox(width: 12),
                   if (_scanning)
                     OutlinedButton(
-                      onPressed: () => setState(() => _scanning = false),
-                      child: const Text('取消'),
+                      onPressed: () {
+                        _cancelRequested = true;
+                        setState(() => _scanning = false);
+                      },
+                      child: Text(T.scanCancel),
                     )
                   else if (_done && _result != null)
                     FilledButton.icon(
                       onPressed: () {
                         final url = _urlController.text.trim();
-                        Navigator.of(context).pushReplacement(
-                          MaterialPageRoute(
-                            builder: (_) => ServerEditorPage(
-                              initialUrl: url,
-                              initialType: _result,
-                            ),
-                          ),
-                        );
+                        context.pushReplacement('/servers/editor', extra: {
+                          'initialUrl': url,
+                          'initialType': _result,
+                        });
                       },
                       icon: const Icon(Icons.arrow_forward, size: 18),
-                      label: const Text('继续'),
+                      label: Text(T.scanContinue),
                     )
                   else
                     FilledButton.icon(
                       onPressed: _startScan,
                       icon: const Icon(Icons.search, size: 18),
-                      label: const Text('探测'),
+                      label: Text(T.scanStart),
                     ),
                 ],
               ),

@@ -13,7 +13,7 @@ class DownloadsPage extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text(T.downloads),
+        title: Text(T.downloads),
         actions: [
           if (entries.isNotEmpty)
             IconButton(
@@ -23,15 +23,15 @@ class DownloadsPage extends ConsumerWidget {
                 final confirmed = await showDialog<bool>(
                   context: context,
                   builder: (ctx) => AlertDialog(
-                    title: const Text(T.clearDownloadHistoryTitle),
-                    content: const Text(T.clearDownloadHistoryContent),
+                    title: Text(T.clearDownloadHistoryTitle),
+                    content: Text(T.clearDownloadHistoryContent),
                     actions: [
                       TextButton(
                           onPressed: () => Navigator.of(ctx).pop(false),
-                          child: const Text(T.cancel)),
+                          child: Text(T.cancel)),
                       FilledButton(
                           onPressed: () => Navigator.of(ctx).pop(true),
-                          child: const Text(T.clear)),
+                          child: Text(T.clear)),
                     ],
                   ),
                 );
@@ -113,6 +113,7 @@ class DownloadsPage extends ConsumerWidget {
                   ),
                   trailing: IconButton(
                     icon: const Icon(Icons.delete_outline, size: 20),
+                    tooltip: T.delete,
                     onPressed: () async {
                       await repo.remove(entry.postId);
                       ref.invalidate(userDownloadsRepoProvider);

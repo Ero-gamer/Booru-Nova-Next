@@ -42,6 +42,7 @@ class _BlacklistPageState extends ConsumerState<BlacklistPage> {
               border: const OutlineInputBorder(),
               suffixIcon: IconButton(
                 icon: const Icon(Icons.add),
+                tooltip: '添加',
                 onPressed: () => _addTags(_controller.text),
               ),
             ),
@@ -70,6 +71,7 @@ class _BlacklistPageState extends ConsumerState<BlacklistPage> {
               leading: const Icon(Icons.block, size: 20),
               trailing: IconButton(
                 icon: const Icon(Icons.close, size: 18),
+                tooltip: '移除',
                 onPressed: () {
                   ref.read(tagsBlockerStateProvider.notifier).delete(entry.key);
                 },

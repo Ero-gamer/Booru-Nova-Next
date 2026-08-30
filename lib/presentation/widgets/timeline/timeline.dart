@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:boorunova/boorus/engine/booru_repository.dart';
 import 'package:boorunova/data/repository/favorites/user_favorite_repo.dart';
+import 'package:boorunova/presentation/provider/app_settings.dart';
+import 'package:boorunova/presentation/theme/app_dimens.dart';
 import 'package:boorunova/presentation/widgets/sliver_masonry_grid.dart';
 import 'package:extended_image/extended_image.dart';
 import 'package:flutter/material.dart';
@@ -73,16 +75,17 @@ class Timeline extends StatelessWidget {
   }
 }
 
-class _AnimatedTile extends StatefulWidget {
+class _AnimatedTile extends ConsumerStatefulWidget {
   const _AnimatedTile({required this.index, required this.child});
   final int index;
   final Widget child;
 
   @override
-  State<_AnimatedTile> createState() => _AnimatedTileState();
+  ConsumerState<_AnimatedTile> createState() => _AnimatedTileState();
 }
 
-class _AnimatedTileState extends State<_AnimatedTile> with SingleTickerProviderStateMixin {
+class _AnimatedTileState extends ConsumerState<_AnimatedTile>
+    with SingleTickerProviderStateMixin {
   AnimationController? _controller;
   Animation<double>? _anim;
   Timer? _delayTimer;
@@ -90,6 +93,8 @@ class _AnimatedTileState extends State<_AnimatedTile> with SingleTickerProviderS
   @override
   void initState() {
     super.initState();
+    // 「减少动画」开启时跳过入场动画，仅保留静态内容
+    if (ref.read(settingsProvider).reduceAnimations) return;
     final controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 300));
     _controller = controller;
     _anim = CurvedAnimation(parent: controller, curve: Curves.easeOutCubic);
@@ -171,6 +176,8 @@ class _PostTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isVideo = _isVideo(post);
+    final showMeta = isVideo || post.score != 0;
     return GestureDetector(
       onTap: selectionMode ? onSelectionToggle : onTap,
       onLongPress: enablePeekPreview && !selectionMode
@@ -181,7 +188,7 @@ class _PostTile extends StatelessWidget {
             ? 'post_${post.serverId}_${post.id}_batch'
             : 'post_${post.serverId}_${post.id}',
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(AppDimens.radiusS),
           child: AspectRatio(
             aspectRatio: post.aspectRatio,
             child: Stack(
@@ -206,61 +213,118 @@ class _PostTile extends StatelessWidget {
                     return state.completedWidget;
                   },
                 ),
+                if (showMeta)
+                  // 底部渐变 + 元信息徽章：评分 / 视频标识（不拦截点击）
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    child: IgnorePointer(
+                      child: Container(
+                        padding: const EdgeInsets.fromLTRB(6, 14, 6, 3),
+                        decoration: const BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [Colors.transparent, Colors.black54],
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            if (isVideo)
+                              const Icon(Icons.play_circle_fill,
+                                  size: 14, color: Colors.white70),
+                            const Spacer(),
+                            if (post.score != 0)
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.thumb_up,
+                                      size: 10, color: Colors.white70),
+                                  const SizedBox(width: 3),
+                                  Text(
+                                    _formatScore(post.score),
+                                    style: const TextStyle(
+                                      fontSize: 10,
+                                      height: 1.2,
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
                 if (!selectionMode && onFavorite != null)
                   Positioned(
-                    top: 4,
-                    right: 4,
+                    top: 0,
+                    right: 0,
                     child: GestureDetector(
                       onTap: onFavorite,
-                      child: Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: const BoxDecoration(
-                          color: Colors.black26,
-                          shape: BoxShape.circle,
-                        ),
-                        child: Consumer(
-                          builder: (context, ref, _) {
-                            // select 精确订阅：只在该帖收藏状态翻转时重建此图标，
-                            // 其余 tile 的收藏变化不再触发整屏重建
-                            final isFav = ref.watch(
-                              userFavoritesRepoProvider.select(
-                                (repo) =>
-                                    repo.isFavorite(post.id, serverId: post.serverId),
-                              ),
-                            );
-                            return Icon(
-                              isFav ? Icons.favorite : Icons.favorite_border,
-                              size: 14,
-                              color: isFav ? Colors.red : Colors.white70,
-                            );
-                          },
+                      // 外层透明内边距扩大触控区至约 40dp，视觉气泡保持小巧
+                      child: Padding(
+                        padding: const EdgeInsets.all(6),
+                        child: Container(
+                          width: 28,
+                          height: 28,
+                          alignment: Alignment.center,
+                          decoration: const BoxDecoration(
+                            color: Colors.black26,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Consumer(
+                            builder: (context, ref, _) {
+                              // select 精确订阅：只在该帖收藏状态翻转时重建此图标，
+                              // 其余 tile 的收藏变化不再触发整屏重建
+                              final isFav = ref.watch(
+                                userFavoritesRepoProvider.select(
+                                  (repo) =>
+                                      repo.isFavorite(post.id, serverId: post.serverId),
+                                ),
+                              );
+                              return Icon(
+                                isFav ? Icons.favorite : Icons.favorite_border,
+                                size: 16,
+                                color: isFav ? Colors.red : Colors.white70,
+                              );
+                            },
+                          ),
                         ),
                       ),
                     ),
                   ),
                 if (selectionMode)
                   Positioned(
-                    top: 6,
-                    right: 6,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: isSelected
-                            ? Theme.of(context).colorScheme.primary
-                            : Colors.black.withOpacity(0.4),
-                        border: Border.all(
+                    top: 0,
+                    right: 0,
+                    child: Padding(
+                      padding: const EdgeInsets.all(6),
+                      child: Container(
+                        width: 28,
+                        height: 28,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
                           color: isSelected
                               ? Theme.of(context).colorScheme.primary
-                              : Colors.white60,
-                          width: 2,
+                              : Colors.black.withOpacity(0.4),
+                          border: Border.all(
+                            color: isSelected
+                                ? Theme.of(context).colorScheme.primary
+                                : Colors.white60,
+                            width: 2,
+                          ),
                         ),
-                      ),
-                      child: Icon(
-                        isSelected ? Icons.check : Icons.circle_outlined,
-                        size: 20,
-                        color: isSelected
-                            ? Theme.of(context).colorScheme.onPrimary
-                            : Colors.white,
+                        child: Icon(
+                          isSelected ? Icons.check : Icons.circle_outlined,
+                          size: 16,
+                          color: isSelected
+                              ? Theme.of(context).colorScheme.onPrimary
+                              : Colors.white,
+                        ),
                       ),
                     ),
                   ),
@@ -277,6 +341,19 @@ class _PostTile extends StatelessWidget {
         ),
       ),
       );
+  }
+
+  static bool _isVideo(PostSummary post) {
+    final url = (post.originalUrl.isNotEmpty ? post.originalUrl : post.sampleUrl)
+        .toLowerCase();
+    return url.endsWith('.mp4') || url.endsWith('.webm');
+  }
+
+  /// 评分缩写：1234 → 1.2k，12345 → 1.2w（万）
+  static String _formatScore(int score) {
+    if (score >= 10000) return '${(score / 10000).toStringAsFixed(1)}w';
+    if (score >= 1000) return '${(score / 1000).toStringAsFixed(1)}k';
+    return '$score';
   }
 }
 
@@ -367,7 +444,7 @@ class _ShimmerTile extends StatelessWidget {
         height: height,
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(AppDimens.radiusS),
         ),
       ),
     );

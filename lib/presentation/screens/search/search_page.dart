@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:boorunova/data/repository/search_history/search_history_repo.dart';
+import 'package:boorunova/presentation/l10n/app_strings.dart';
 import 'package:boorunova/presentation/provider/booru/page_state.dart';
 import 'package:boorunova/presentation/provider/booru/tag_suggestions.dart';
 import 'package:boorunova/presentation/provider/booru/trending_tags.dart';
@@ -107,14 +108,15 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           children: [
             IconButton(
               icon: const Icon(Icons.arrow_back),
+              tooltip: T.backAction,
               onPressed: () => context.pop(''),
             ),
             Expanded(
               child: TextField(
                 controller: _controller,
                 focusNode: _focusNode,
-                decoration: const InputDecoration(
-                  hintText: '搜索标签...',
+                decoration: InputDecoration(
+                  hintText: T.searchTagHint,
                   border: InputBorder.none,
                   isDense: true,
                 ),
@@ -126,6 +128,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
             if (_controller.text.isNotEmpty)
               IconButton(
                 icon: const Icon(Icons.clear),
+                tooltip: T.clear,
                 onPressed: () {
                   _controller.clear();
                   _onChanged('');
@@ -215,7 +218,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       data: (tags) {
         if (tags.isEmpty) {
           return Center(
-            child: Text('没有匹配的标签', style: TextStyle(color: theme.colorScheme.onSurfaceVariant)),
+            child: Text(T.noMatchingTags, style: TextStyle(color: theme.colorScheme.onSurfaceVariant)),
           );
         }
         return ListView.builder(
@@ -224,14 +227,14 @@ class _SearchPageState extends ConsumerState<SearchPage> {
             dense: true,
             leading: Icon(Icons.tag, size: 18, color: theme.colorScheme.primary),
             title: Text(tags[i], style: const TextStyle(fontSize: 15)),
-            trailing: const Icon(Icons.arrow_upward, size: 16, color: Colors.grey),
+            trailing: Icon(Icons.arrow_upward, size: 16, color: theme.colorScheme.onSurfaceVariant),
             onTap: () => _submit(tags[i]),
           ),
         );
       },
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (_, __) => Center(
-        child: Text('建议加载失败', style: TextStyle(color: theme.colorScheme.onSurfaceVariant)),
+        child: Text(T.suggestionsFailed, style: TextStyle(color: theme.colorScheme.onSurfaceVariant)),
       ),
     );
   }

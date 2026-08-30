@@ -116,26 +116,26 @@ class _HostsPageState extends ConsumerState<HostsPage> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text(T.addHostMapping),
+        title: Text(T.addHostMapping),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: domainCtrl,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: T.domain,
                 hintText: T.domainHint,
-                border: OutlineInputBorder(),
+                border: const OutlineInputBorder(),
               ),
               autofocus: true,
             ),
             const SizedBox(height: 12),
             TextField(
               controller: ipCtrl,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: T.ipAddress,
                 hintText: T.ipHint,
-                border: OutlineInputBorder(),
+                border: const OutlineInputBorder(),
               ),
               keyboardType: TextInputType.number,
             ),
@@ -144,7 +144,7 @@ class _HostsPageState extends ConsumerState<HostsPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text(T.cancel),
+            child: Text(T.cancel),
           ),
           FilledButton(
             onPressed: () {
@@ -160,7 +160,7 @@ class _HostsPageState extends ConsumerState<HostsPage> {
               setState(() => _dirty = true);
               Navigator.pop(ctx);
             },
-            child: const Text(T.add),
+            child: Text(T.add),
           ),
         ],
       ),
@@ -177,15 +177,15 @@ class _HostsPageState extends ConsumerState<HostsPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text(T.hostsTitle),
+        title: Text(T.hostsTitle),
         actions: [
           Consumer(
             builder: (context, ref, _) {
               final enabled = ref.watch(settingsProvider).hostsEnabled;
               return IconButton(
                 icon: Icon(enabled ? Icons.power_settings_new : Icons.power_settings_new_outlined,
-                    color: enabled ? Colors.green : null),
-                tooltip: enabled ? 'Hosts 已启用' : 'Hosts 未启用',
+                    color: enabled ? Theme.of(context).colorScheme.primary : null),
+                tooltip: enabled ? T.hostsOnTip : T.hostsOffTip,
                 onPressed: () {
                   ref.read(settingsProvider.notifier).setHostsEnabled(!enabled);
                 },

@@ -1,11 +1,11 @@
 import 'package:boorunova/presentation/l10n/app_strings.dart';
-import 'package:boorunova/presentation/provider/app_settings.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 final gridColumnsProvider = StateProvider<int>((ref) => 3);
 
+/// 首页底部悬浮搜索栏：自身透明，玻璃质感由外层 GlassContainer 提供。
 class HomeSearchBar extends ConsumerWidget {
   const HomeSearchBar({
     super.key,
@@ -36,20 +36,9 @@ class HomeSearchBar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final reduceAnimations = ref.watch(settingsProvider).reduceAnimations;
-
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-      child: AnimatedContainer(
-        duration: Duration(milliseconds: reduceAnimations ? 0 : 300),
-        decoration: BoxDecoration(
-          color: Theme.of(context)
-              .colorScheme
-              .surfaceContainerHighest
-              .withOpacity(0.8),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Row(
+      padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
+      child: Row(
           children: [
             if (leading != null) leading!,
             IconButton(
@@ -83,6 +72,7 @@ class HomeSearchBar extends ConsumerWidget {
                 height: 40,
                 child: IconButton(
                   icon: const Icon(Icons.arrow_upward_rounded),
+                  tooltip: T.backToTop,
                   onPressed: onScrollToTop,
                 ),
               )
@@ -90,21 +80,23 @@ class HomeSearchBar extends ConsumerWidget {
               SizedBox(
                 width: 40,
                 height: 40,
-                child: TextButton(
-                  style: TextButton.styleFrom(padding: EdgeInsets.zero),
-                  onPressed: () {
-                    final next = ref.read(gridColumnsProvider) >= 6
-                        ? 2
-                        : ref.read(gridColumnsProvider) + 1;
-                    ref.read(gridColumnsProvider.notifier).state = next;
-                  },
-                  child: Text('${ref.watch(gridColumnsProvider)}',
-                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                child: Tooltip(
+                  message: T.switchColumns,
+                  child: TextButton(
+                    style: TextButton.styleFrom(padding: EdgeInsets.zero),
+                    onPressed: () {
+                      final next = ref.read(gridColumnsProvider) >= 6
+                          ? 2
+                          : ref.read(gridColumnsProvider) + 1;
+                      ref.read(gridColumnsProvider.notifier).state = next;
+                    },
+                    child: Text('${ref.watch(gridColumnsProvider)}',
+                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                  ),
                 ),
               ),
           ],
         ),
-      ),
     );
   }
 }

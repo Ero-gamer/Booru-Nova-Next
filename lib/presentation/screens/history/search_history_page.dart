@@ -1,5 +1,7 @@
 import 'package:boorunova/data/repository/search_history/search_history_repo.dart';
+import 'package:boorunova/presentation/l10n/app_strings.dart';
 import 'package:boorunova/presentation/provider/booru/page_state.dart';
+import 'package:boorunova/presentation/widgets/common/app_placeholders.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -12,11 +14,12 @@ class SearchHistoryPage extends ConsumerWidget {
     final history = ref.watch(searchHistoryRepoProvider).getAll();
     return Scaffold(
       appBar: AppBar(
-        title: const Text('搜索历史'),
+        title: Text(T.searchHistoryTitle),
         actions: [
           if (history.isNotEmpty)
             IconButton(
               icon: const Icon(Icons.delete_sweep),
+              tooltip: T.clearSearchHistoryTip,
               onPressed: () async {
                 await ref.read(searchHistoryRepoProvider).clear();
                 ref.invalidate(searchHistoryRepoProvider);
@@ -25,11 +28,13 @@ class SearchHistoryPage extends ConsumerWidget {
         ],
       ),
       body: history.isEmpty
-          ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-              Icon(Icons.history, size: 48, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.3)),
-              const SizedBox(height: 12),
-              Text('暂无搜索历史', style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5))),
-            ]))
+          ? Center(
+              child: EmptyState(
+                icon: Icons.history,
+                title: T.noSearchHistory,
+                hint: T.searchHistoryHint,
+              ),
+            )
           : ListView.separated(
               itemCount: history.length,
               separatorBuilder: (_, __) => const Divider(height: 1),
@@ -38,6 +43,7 @@ class SearchHistoryPage extends ConsumerWidget {
                 title: Text(history[i], style: const TextStyle(fontSize: 14)),
                 trailing: IconButton(
                   icon: const Icon(Icons.close, size: 16),
+                  tooltip: T.deleteAction,
                   onPressed: () async {
                     await ref.read(searchHistoryRepoProvider).remove(history[i]);
                     ref.invalidate(searchHistoryRepoProvider);

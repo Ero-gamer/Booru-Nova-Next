@@ -1,5 +1,6 @@
 import 'package:boorunova/data/repository/history/user_history_repo.dart';
 import 'package:boorunova/presentation/l10n/app_strings.dart';
+import 'package:boorunova/presentation/widgets/common/app_placeholders.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -13,7 +14,7 @@ class HistoryPage extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text(T.history),
+        title: Text(T.history),
         actions: [
           if (entries.isNotEmpty)
             IconButton(
@@ -23,15 +24,15 @@ class HistoryPage extends ConsumerWidget {
                 final confirmed = await showDialog<bool>(
                   context: context,
                   builder: (ctx) => AlertDialog(
-                    title: const Text(T.clearHistoryTitle),
-                    content: const Text(T.clearHistoryContent),
+                    title: Text(T.clearHistoryTitle),
+                    content: Text(T.clearHistoryContent),
                     actions: [
                       TextButton(
                           onPressed: () => Navigator.of(ctx).pop(false),
-                          child: const Text(T.cancel)),
+                          child: Text(T.cancel)),
                       FilledButton(
                           onPressed: () => Navigator.of(ctx).pop(true),
-                          child: const Text(T.clear)),
+                          child: Text(T.clear)),
                     ],
                   ),
                 );
@@ -45,27 +46,7 @@ class HistoryPage extends ConsumerWidget {
       ),
       body: entries.isEmpty
           ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.history,
-                      size: 64,
-                      color: Theme.of(context)
-                          .colorScheme
-                          .onSurface
-                          .withOpacity(0.3)),
-                  const SizedBox(height: 16),
-                  Text(
-                    T.noHistory,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          color: Theme.of(context)
-                              .colorScheme
-                              .onSurface
-                              .withOpacity(0.5),
-                        ),
-                  ),
-                ],
-              ),
+              child: EmptyState(icon: Icons.history, title: T.noHistory),
             )
           : ListView.separated(
               padding: const EdgeInsets.symmetric(vertical: 4),

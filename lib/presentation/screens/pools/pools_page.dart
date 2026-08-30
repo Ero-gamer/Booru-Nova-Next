@@ -1,5 +1,6 @@
 import 'package:boorunova/boorus/engine/booru_repository.dart';
 import 'package:boorunova/presentation/provider/booru/page_state.dart';
+import 'package:boorunova/presentation/widgets/common/app_placeholders.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -136,25 +137,9 @@ class _Placeholder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    // 视觉统一收口到共享 EmptyState，调用方签名保持不变。
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon,
-              size: 64,
-              color: theme.colorScheme.onSurface.withOpacity(0.3)),
-          const SizedBox(height: 16),
-          Text(text,
-              textAlign: TextAlign.center,
-              style: theme.textTheme.titleMedium?.copyWith(
-                  color: theme.colorScheme.onSurface.withOpacity(0.5))),
-          if (action != null) ...[
-            const SizedBox(height: 16),
-            action!,
-          ],
-        ],
-      ),
+      child: EmptyState(icon: icon, title: text, action: action),
     );
   }
 }
