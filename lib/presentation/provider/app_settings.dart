@@ -1,4 +1,5 @@
 import 'package:boorunova/foundation/database/hive_setup.dart';
+import 'package:boorunova/presentation/l10n/app_strings.dart';
 import 'package:boorunova/presentation/provider/app_theme.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -21,6 +22,8 @@ class AppSettings {
     this.longPressAction = 'fav',
     this.downloadPath = '',
     this.reduceAnimations = false,
+    this.language = 'zh',
+    this.onboardingComplete = false,
   });
 
   factory AppSettings.fromJson(Map<String, dynamic> json) => AppSettings(
@@ -40,6 +43,8 @@ class AppSettings {
         longPressAction: json['longPressAction'] as String? ?? 'fav',
         downloadPath: json['downloadPath'] as String? ?? '',
         reduceAnimations: json['reduceAnimations'] as bool? ?? false,
+        language: json['language'] as String? ?? 'zh',
+        onboardingComplete: json['onboardingComplete'] as bool? ?? false,
       );
 
   final AppThemeMode themeMode;
@@ -56,6 +61,12 @@ class AppSettings {
   final String downloadPath;
   final bool reduceAnimations;
 
+  /// 界面语言：'zh' | 'en'
+  final String language;
+
+  /// 首次启动引导是否已完成
+  final bool onboardingComplete;
+
   AppSettings copyWith({
     AppThemeMode? themeMode,
     String? defaultServerId,
@@ -70,6 +81,8 @@ class AppSettings {
     String? longPressAction,
     String? downloadPath,
     bool? reduceAnimations,
+    String? language,
+    bool? onboardingComplete,
   }) =>
       AppSettings(
         themeMode: themeMode ?? this.themeMode,
@@ -85,6 +98,8 @@ class AppSettings {
         longPressAction: longPressAction ?? this.longPressAction,
         downloadPath: downloadPath ?? this.downloadPath,
         reduceAnimations: reduceAnimations ?? this.reduceAnimations,
+        language: language ?? this.language,
+        onboardingComplete: onboardingComplete ?? this.onboardingComplete,
       );
 
   Map<String, dynamic> toJson() => {
@@ -101,6 +116,8 @@ class AppSettings {
         'longPressAction': longPressAction,
         'downloadPath': downloadPath,
         'reduceAnimations': reduceAnimations,
+        'language': language,
+        'onboardingComplete': onboardingComplete,
       };
 }
 
@@ -178,6 +195,18 @@ class SettingsNotifier extends Notifier<AppSettings> {
 
   Future<void> setReduceAnimations(bool enabled) async {
     state = state.copyWith(reduceAnimations: enabled);
+    await _persist();
+  }
+
+  /// 切换界面语言并同步 T 静态文案标志。
+  Future<void> setLanguage(String code) async {
+    T.setLocale(code);
+    state = state.copyWith(language: code);
+    await _persist();
+  }
+
+  Future<void> completeOnboarding() async {
+    state = state.copyWith(onboardingComplete: true);
     await _persist();
   }
 

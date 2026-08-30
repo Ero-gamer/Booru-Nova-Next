@@ -1,4 +1,7 @@
 import 'package:boorunova/boorus/engine/booru_repository.dart';
+import 'package:boorunova/boorus/engine/booru_type.dart';
+import 'package:boorunova/data/repository/server/user_server_repo.dart';
+import 'package:boorunova/presentation/provider/app_settings.dart';
 import 'package:boorunova/presentation/screens/artists/artists_page.dart';
 import 'package:boorunova/presentation/screens/blacklist/blacklist_page.dart';
 import 'package:boorunova/presentation/screens/downloads/downloads_page.dart';
@@ -8,15 +11,18 @@ import 'package:boorunova/presentation/screens/forum/forum_page.dart';
 import 'package:boorunova/presentation/screens/history/history_page.dart';
 import 'package:boorunova/presentation/screens/history/search_history_page.dart';
 import 'package:boorunova/presentation/screens/home/home_page.dart';
+import 'package:boorunova/presentation/screens/onboarding/onboarding_page.dart';
 import 'package:boorunova/presentation/screens/pools/pool_detail_page.dart';
 import 'package:boorunova/presentation/screens/pools/pools_page.dart';
 import 'package:boorunova/presentation/screens/post/post_detail_page.dart';
 import 'package:boorunova/presentation/screens/post/post_viewer.dart';
 import 'package:boorunova/presentation/screens/search/search_page.dart';
+import 'package:boorunova/presentation/screens/server/booru_site_template.dart';
+import 'package:boorunova/presentation/screens/server/server_editor_page.dart';
 import 'package:boorunova/presentation/screens/server/server_page.dart';
+import 'package:boorunova/presentation/screens/server/server_probe_page.dart';
 import 'package:boorunova/presentation/screens/settings/about_settings_page.dart';
 import 'package:boorunova/presentation/screens/settings/appearance_page.dart';
-import 'package:boorunova/presentation/screens/settings/booru_config_page.dart';
 import 'package:boorunova/presentation/screens/settings/data_backup_page.dart';
 import 'package:boorunova/presentation/screens/settings/data_storage_page.dart';
 import 'package:boorunova/presentation/screens/settings/download_settings_page.dart';
@@ -63,11 +69,28 @@ final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     navigatorKey: navigatorKey,
     initialLocation: '/',
+    // 首次启动（未完成引导 且 尚无任何站点）强制进入引导页。
+    // 双条件避免老用户升级时（有站点、无 onboardingComplete 标记）被强制重走。
+    redirect: (context, state) {
+      final settings = ref.read(settingsProvider);
+      final hasServers = ref.read(userServerRepoProvider).count > 0;
+      final needsOnboarding =
+          !settings.onboardingComplete && !hasServers;
+      final onOnboarding = state.uri.path == '/onboarding';
+      if (needsOnboarding && !onOnboarding) return '/onboarding';
+      if (!needsOnboarding && onOnboarding) return '/';
+      return null;
+    },
     routes: [
       GoRoute(
         path: '/',
         name: 'home',
         pageBuilder: (context, state) => _slidePage(const HomePage()),
+      ),
+      GoRoute(
+        path: '/onboarding',
+        name: 'onboarding',
+        pageBuilder: (context, state) => _slidePage(const OnboardingPage()),
       ),
       GoRoute(
         path: '/favorites',
@@ -187,11 +210,6 @@ final routerProvider = Provider<GoRouter>((ref) {
             pageBuilder: (context, state) => _slidePage(const DataBackupPage()),
           ),
           GoRoute(
-            path: 'booru',
-            name: 'settings-booru',
-            pageBuilder: (context, state) => _slidePage(const BooruConfigPage()),
-          ),
-          GoRoute(
             path: 'privacy',
             name: 'settings-privacy',
             pageBuilder: (context, state) => _slidePage(const PrivacyPage()),
@@ -207,6 +225,35 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/servers',
         name: 'servers',
         pageBuilder: (context, state) => _slidePage(const ServerPage()),
+        routes: [
+          GoRoute(
+            path: 'editor',
+            name: 'servers-editor',
+            pageBuilder: (context, state) {
+              final extra = state.extra;
+              if (extra is Map) {
+                return _slidePage(ServerEditorPage(
+                  serverId: extra['serverId'] as String?,
+                  template: extra['template'] as BooruSiteTemplate?,
+                  initialUrl: extra['initialUrl'] as String?,
+                  initialName: extra['initialName'] as String?,
+                  initialType: extra['initialType'] as BooruType?,
+                ));
+              }
+              return _slidePage(const _InvalidRoutePage());
+            },
+          ),
+          GoRoute(
+            path: 'scan',
+            name: 'servers-scan',
+            pageBuilder: (context, state) {
+              final extra = state.extra;
+              final initialUrl =
+                  extra is Map ? (extra['initialUrl'] as String? ?? '') : '';
+              return _slidePage(ServerScanPage(initialUrl: initialUrl));
+            },
+          ),
+        ],
       ),
       GoRoute(
         path: '/post/:id',
