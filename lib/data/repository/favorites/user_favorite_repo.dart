@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:boorunova/data/repository/booru/entity/post.dart';
 import 'package:boorunova/foundation/database/hive_setup.dart';
+import 'package:boorunova/foundation/util/json_safe.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_ce/hive.dart';
 
@@ -23,11 +24,16 @@ class UserFavoritesRepo {
     final cached = _cache;
     if (cached != null) return cached;
     final raw = _box.get(_key) as String?;
-    final list = raw == null
-        ? <BooruPost>[]
-        : (jsonDecode(raw) as List)
-            .map((e) => BooruPost.fromJson(e as Map<String, dynamic>))
-            .toList();
+    // 逐条容错：单条畸形收藏数据跳过，不让整个收藏列表加载崩溃。
+    final list = decodeJsonList(raw).map((e) {
+      final m = asStringMap(e);
+      if (m == null) return null;
+      try {
+        return BooruPost.fromJson(m);
+      } catch (_) {
+        return null;
+      }
+    }).whereType<BooruPost>().toList();
     _cache = list;
     _keySet = list.map((p) => _keyFor(p.id, p.serverId)).toSet();
     return list;

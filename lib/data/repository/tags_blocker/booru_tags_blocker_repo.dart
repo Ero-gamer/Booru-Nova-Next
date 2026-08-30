@@ -10,7 +10,12 @@ class BooruTagsBlockerRepo {
       final map = <int, BooruTag>{};
       for (int i = 0; i < raw.length; i++) {
         if (raw[i] is Map) {
-          map[i] = BooruTag.fromJson(Map<String, dynamic>.from(raw[i] as Map));
+          try {
+            map[i] =
+                BooruTag.fromJson(Map<String, dynamic>.from(raw[i] as Map));
+          } catch (_) {
+            // 单条畸形标签跳过，不让屏蔽列表整体加载崩溃。
+          }
         }
       }
       return map;

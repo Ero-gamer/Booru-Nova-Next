@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:boorunova/data/repository/server/entity/server.dart';
 import 'package:boorunova/foundation/database/hive_setup.dart';
+import 'package:boorunova/foundation/util/json_safe.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_ce/hive.dart';
 
@@ -15,9 +16,10 @@ class UserServerRepo {
   static const _orderKey = 'server_order';
 
   List<String> get _order {
-    final raw = _settingsBox.get(_orderKey) as List?;
-    if (raw == null) return [];
-    return raw.cast<String>();
+    final raw = _settingsBox.get(_orderKey);
+    if (raw is! List) return [];
+    // 跳过非字符串元素，避免 schema 漂移时 cast 抛错。
+    return raw.whereType<String>().toList();
   }
 
   Future<void> _saveOrder(List<String> order) async {
@@ -25,10 +27,17 @@ class UserServerRepo {
   }
 
   List<BooruServer> getAll() {
-    final servers = _box.values.map((v) {
-      final map = jsonDecode(v as String) as Map<String, dynamic>;
-      return BooruServer.fromJson(map);
-    }).toList();
+    final servers = <BooruServer>[];
+    for (final v in _box.values) {
+      if (v is! String) continue;
+      try {
+        final map = asStringMap(jsonDecode(v));
+        if (map == null) continue;
+        servers.add(BooruServer.fromJson(map));
+      } catch (_) {
+        // 单条数据损坏时跳过，不让整个服务器列表加载崩溃。
+      }
+    }
 
     final order = _order;
     if (order.isEmpty) return servers;
@@ -60,9 +69,15 @@ class UserServerRepo {
   }
 
   BooruServer? getById(String id) {
-    final raw = _box.get(id) as String?;
-    if (raw == null) return null;
-    return BooruServer.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+    final raw = _box.get(id);
+    if (raw is! String) return null;
+    try {
+      final map = asStringMap(jsonDecode(raw));
+      if (map == null) return null;
+      return BooruServer.fromJson(map);
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<void> save(BooruServer server) async {

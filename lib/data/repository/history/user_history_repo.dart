@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:boorunova/boorus/engine/booru_repository.dart';
 import 'package:boorunova/foundation/database/hive_setup.dart';
+import 'package:boorunova/foundation/util/json_safe.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 final userHistoryRepoProvider = Provider<UserHistoryRepo>((ref) {
@@ -83,17 +84,31 @@ class HistoryEntry {
 class UserHistoryRepo {
   static const _key = 'history';
 
-  List<HistoryEntry> getAll() {
-    final raw = HiveSetup.settingsBox.get(_key) as String?;
-    if (raw == null) return [];
-    final list = jsonDecode(raw) as List;
-    return list
-        .map((e) => HistoryEntry.fromJson(e as Map<String, dynamic>))
-        .toList();
+  /// 内存缓存：首次访问时从 Hive 载入，之后 add/remove 先同步改内存再持久化，
+  /// 避免并发 read-modify-write 时互相覆盖（快速翻页/幻灯片连续触发 add）。
+  List<HistoryEntry>? _cache;
+
+  List<HistoryEntry> _load() {
+    final cached = _cache;
+    if (cached != null) return cached;
+    final raw = asStringOrNull(HiveSetup.settingsBox.get(_key));
+    final list = decodeJsonList(raw).map((e) {
+      final m = asStringMap(e);
+      if (m == null) return null;
+      try {
+        return HistoryEntry.fromJson(m);
+      } catch (_) {
+        return null;
+      }
+    }).whereType<HistoryEntry>().toList();
+    _cache = list;
+    return list;
   }
 
+  List<HistoryEntry> getAll() => _load();
+
   Future<void> add(PostSummary post) async {
-    final all = getAll();
+    final all = _load();
     all.removeWhere((e) => e.postId == post.id && e.serverId == post.serverId);
     all.insert(0, HistoryEntry.fromPost(post));
     if (all.length > 200) all.removeRange(200, all.length);
@@ -101,10 +116,11 @@ class UserHistoryRepo {
   }
 
   Future<void> clear() async {
+    _cache = [];
     await HiveSetup.settingsBox.delete(_key);
   }
 
-  int get count => getAll().length;
+  int get count => _load().length;
 
   Future<void> _save(List<HistoryEntry> entries) async {
     final json = entries.map((e) => e.toJson()).toList();

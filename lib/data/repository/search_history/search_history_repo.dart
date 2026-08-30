@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:boorunova/foundation/database/hive_setup.dart';
+import 'package:boorunova/foundation/util/json_safe.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 final searchHistoryRepoProvider = Provider<SearchHistoryRepo>((ref) {
@@ -11,10 +12,9 @@ class SearchHistoryRepo {
   static const _key = 'search_history';
 
   List<String> getAll() {
-    final raw = HiveSetup.settingsBox.get(_key) as String?;
-    if (raw == null) return [];
-    final list = jsonDecode(raw) as List;
-    return list.cast<String>();
+    final raw = asStringOrNull(HiveSetup.settingsBox.get(_key));
+    // 跳过非字符串元素，避免单条脏数据让整个列表 load 崩溃。
+    return decodeJsonList(raw).whereType<String>().toList();
   }
 
   Future<void> add(String query) async {

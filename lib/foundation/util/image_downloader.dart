@@ -1,7 +1,7 @@
 import 'package:boorunova/data/repository/downloads/user_downloads_repo.dart';
 import 'package:boorunova/foundation/network/dio_factory.dart';
+import 'package:boorunova/foundation/util/download_paths.dart';
 import 'package:gal/gal.dart';
-import 'package:path_provider/path_provider.dart';
 
 typedef OnProgress = void Function(double progress);
 
@@ -14,15 +14,15 @@ class ImageDownloader {
     int? width,
     int? height,
     OnProgress? onProgress,
+    String downloadPath = '',
   }) async {
     try {
-      final dir = await getTemporaryDirectory();
-      final name = url.split('/').last;
-      if (!name.contains('.')) {
+      final dir = await resolveDownloadDir(downloadPath);
+      if (!url.split('/').last.contains('.')) {
         return const DownloadResult(success: false, error: 'No file extension');
       }
 
-      final path = '${dir.path}/$name';
+      final path = '${dir.path}/${uniqueFileName(url, postId: postId)}';
       final dio = DioFactory.createDownload();
       await dio.download(
         url, path,

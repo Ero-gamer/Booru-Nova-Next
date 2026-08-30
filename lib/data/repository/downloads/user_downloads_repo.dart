@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:boorunova/foundation/database/hive_setup.dart';
+import 'package:boorunova/foundation/util/json_safe.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 final userDownloadsRepoProvider = Provider<UserDownloadsRepo>((ref) {
@@ -47,12 +48,18 @@ class UserDownloadsRepo {
   static const _key = 'downloads';
 
   List<DownloadEntry> getAll() {
-    final raw = HiveSetup.settingsBox.get(_key) as String?;
-    if (raw == null) return [];
-    final list = jsonDecode(raw) as List;
-    return list
-        .map((e) => DownloadEntry.fromJson(e as Map<String, dynamic>))
-        .toList();
+    final raw = asStringOrNull(HiveSetup.settingsBox.get(_key));
+    final list = decodeJsonList(raw);
+    // 逐条容错：单条畸形数据跳过，不让整个列表崩溃。
+    return list.map((e) {
+      final m = asStringMap(e);
+      if (m == null) return null;
+      try {
+        return DownloadEntry.fromJson(m);
+      } catch (_) {
+        return null;
+      }
+    }).whereType<DownloadEntry>().toList();
   }
 
   Future<void> add(DownloadEntry entry) async {

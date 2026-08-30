@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:boorunova/data/repository/hosts/entity/host_entry.dart';
 import 'package:boorunova/foundation/database/hive_setup.dart';
+import 'package:boorunova/foundation/util/json_safe.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_ce/hive.dart';
 
@@ -15,11 +16,16 @@ class UserHostsRepo {
 
   List<HostEntry> getAll() {
     final raw = _box.get(_key) as String?;
-    if (raw == null) return [];
-    final list = jsonDecode(raw) as List;
-    return list
-        .map((e) => HostEntry.fromJson(e as Map<String, dynamic>))
-        .toList();
+    final list = decodeJsonList(raw);
+    return list.map((e) {
+      final m = asStringMap(e);
+      if (m == null) return null;
+      try {
+        return HostEntry.fromJson(m);
+      } catch (_) {
+        return null;
+      }
+    }).whereType<HostEntry>().toList();
   }
 
   HostEntry? getByDomain(String domain) {
