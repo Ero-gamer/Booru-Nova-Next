@@ -53,7 +53,9 @@ android {
         applicationId "com.boorunova.app"
         // You can update the following values to match your application needs.
         // For more information, see: https://docs.flutter.dev/deployment/android#reviewing-the-build-configuration.
-        minSdkVersion 21
+        // 与 README、banner、应用介绍声明的 Android 8.0+ 保持一致，
+        // 避免文档比实现更宽松（或更严格）而对不上。
+        minSdkVersion 26
         targetSdkVersion flutter.targetSdkVersion
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
