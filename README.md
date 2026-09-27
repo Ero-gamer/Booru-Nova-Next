@@ -17,14 +17,23 @@ English / [简体中文](README_cn.md)
 [![Release](https://img.shields.io/github/v/release/qingzhuo-cn/boorunova)](https://github.com/qingzhuo-cn/boorunova/releases)
 [![GitHub stars](https://img.shields.io/github/stars/qingzhuo-cn/boorunova?style=social)](https://github.com/qingzhuo-cn/boorunova)
 
-**📲 Try it now** — grab the latest APK from
-[**GitHub Releases**](https://github.com/qingzhuo-cn/boorunova/releases)
-(universal `arm64-v8a / x86_64`), or [run from source](#quick-start) in 3 commands.
+<br>
+
+### 📲 Try it now
+
+**Latest: [v1.8.0](https://github.com/qingzhuo-cn/boorunova/releases/latest)** — universal `arm64-v8a / x86_64`, Android 8.0+
+
+[⬇️ Download APK](https://github.com/qingzhuo-cn/boorunova/releases/latest/download/app-release.apk) &nbsp;·&nbsp;
+[all releases](https://github.com/qingzhuo-cn/boorunova/releases) &nbsp;·&nbsp;
+[build from source](#quick-start)
 
 </div>
 
+---
+
 ## Table of Contents
 
+- [Screenshots](#screenshots)
 - [Why BooruNova](#why-boorunova)
 - [Features](#features)
 - [Supported Sites](#supported-sites)
@@ -50,34 +59,45 @@ English / [简体中文](README_cn.md)
 
 Browsing multiple booru sites usually means juggling several apps or clunky mobile websites, each with different search syntax, tag layouts, and quirks. BooruNova was built to be a single, fast, native client that speaks every major booru engine — one search bar, one timeline, one place for favorites and downloads.
 
+Everything is native Flutter, everything is on-device, and nothing is gated behind an account.
+
 ## Features
 
 ### Browsing
 - 🖼️ **Multi-server support** — browse every configured site from one app
-- 🌊 **Masonry timeline** — adjustable grid columns (2–6), seamless infinite scroll
+- 🔀 **One-tap site switching** — tap the site icon in the search bar to jump between servers, no page reload
+- 🌊 **Masonry timeline** — adjustable grid columns (2–6, remembered across restarts), seamless infinite scroll
 - 🔍 **Full-screen viewer** — pinch-zoom, swipe navigation, slideshow mode
+- 👆 **Peek on long-press** — press and hold any tile for a floating preview, release to dismiss
+- 🧭 **Explore** — hot / newest / random browsing without typing a query
+- 🗃️ **Pools** — browse image sets, shown only for engines that actually implement them
 - 🏷️ **Categorized tags** — artist / character / copyright / general / meta
 
 ### Search
 - ✨ **Tag autocomplete** — debounced, per-server cached suggestions
 - 🔥 **Trending tags** — pulled live from the current site
+- ✏️ **Editable query** — tap the search bar after searching to refine the tags in place
 - 🕘 **Search history** — last 20 queries, one-tap re-run
-- 🎚️ **Sort & rating filters** — relevance / score / date / rating, built into the query
+- 🎚️ **Sort & rating filters** — relevance / score / date / rating, merged into the query for you
 
 ### Favorites & Downloads
 - ⭐ **Favorites** — tracked per-server, cross-app
-- 💾 **Download to gallery** — sample or original quality
+- 💾 **Download to gallery** — sample or original quality, your choice
+- 🕐 **Browse history & downloads** — tap any record to view it again, share it, or open it in another app
 - 📦 **Batch operations** — favorite, download, and share multiple posts
 
 ### Personalization
-- 🚫 **Tag blacklist** — hide what you don't want to see
 - 🎨 **Themes** — light / dark / midnight with custom accent colors
 - 👆 **Configurable gestures** — swipe / tap / long-press actions
-- 🌐 **Custom Hosts mapping** — reach sites from restricted networks
+- 🌍 **Bilingual UI** — full English and Chinese, switchable in settings
+- 🚫 **Tag blacklist** — hide what you don't want to see
+- ♿ **Reduce animations** — instant page transitions when motion bothers you
+- 🌐 **Custom Hosts mapping** — reach sites from restricted networks, without breaking HTTPS
 
 ### Data Management
 - 🗄️ **Full backup & restore** — servers, favorites, history, blacklist, settings
 - 🧹 **Cache management** — reclaim storage in one tap
+- 🙋 **First-run guide** — a short walkthrough for new installs
 
 ## Supported Sites
 
@@ -101,6 +121,11 @@ Grab the latest APK from [GitHub Releases](https://github.com/qingzhuo-cn/boorun
 | ABI | Package |
 |-----|---------|
 | arm64-v8a / x86_64 (universal) | `app-release.apk` |
+
+**Requires Android 8.0 (API 26) or newer.**
+
+> The APK is signed with a release key. Installing over a previous build is a
+> straight upgrade — your servers, favorites, and history are untouched.
 
 ## Quick Start
 
@@ -140,36 +165,47 @@ Output lands at `build/app/outputs/flutter-apk/app-release.apk`.
 | 3 | Tap **探测 / Detect** — the engine is auto-matched |
 | 4 | Confirm the engine, name it, save |
 
+### Switching sites
+
+Tap the site icon on the left of the search bar. The whole server list opens as
+a menu with the active one ticked — no need to leave the timeline you're on.
+
 ### Reordering servers
 
 Tap the sort button (top-right of the Servers page) to enter drag-reorder mode, then drag to taste.
 
 ### Searching
 
-Type a tag and pick from live suggestions, or combine with sort/rating filters from the toolbar (`order:score`, `rating:s`, …) — they're merged into the query for you.
+Type a tag and pick from live suggestions, or combine with sort/rating filters from the toolbar (`order:score`, `rating:s`, …) — they're merged into the query for you. After a search, tap the search bar again to edit the tags in place instead of starting over.
 
 ## How It Works
 
 ```
 ┌─────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   UI (Riverpod) │──▶│  BooruRegistry    │──▶│  Engine (8 impl) │
+│  UI (Riverpod) │──▶│  BooruRegistry    │──▶│  Engine (8 impl) │
 │  screens/widgets │   │  createRepository │   │  per-site repo   │
 └─────────────┘    └──────────────────┘    └────────┬────────┘
-                                                    │
-                          ┌─────────────────────────┘
-                          ▼
-                   ┌──────────────┐    ┌──────────────┐
-                   │  BaseBooru    │──▶│   Parser      │──▶ BooruPost
-                   │  Repository   │   │ (per engine)  │
-                   │  (dio+server) │    └──────────────┘
-                   └──────┬───────┘
-                         │
-                   ┌─────▼──────┐
-                   │ DioFactory │──▶ hosts interceptor, timeouts, UA
-                   └────────────┘
+                                                     │
+                           ┌─────────────────────────┘
+                           ▼
+                    ┌──────────────┐    ┌──────────────┐
+                    │  BaseBooru    │──▶│   Parser      │──▶ BooruPost
+                    │  Repository   │   │ (per engine)  │
+                    │  (dio+server) │    └──────────────┘
+                    └──────┬───────┘
+                          │
+                    ┌─────▼──────┐
+                    │ DioFactory │──▶ timeouts, UA, hosts connection mapping
+                    └────────────┘
 ```
 
-Every engine is a thin `BaseBooruRepository` subclass — it only declares its endpoints and parser. Networking (timeouts, hosts remapping, auth headers) is centralized in `DioFactory`, so one fix applies everywhere.
+Every engine is a thin `BaseBooruRepository` subclass — it only declares its endpoints and parser. Networking is centralized in `DioFactory`, so one fix applies everywhere.
+
+**Hosts mapping happens at the connection layer, not on the URL.** A custom
+mapping resolves the target IP for the TCP connection while the request URL
+keeps the original domain — so query parameters survive, and HTTPS still
+negotiates with the correct SNI and certificate. Rewriting the URL instead would
+silently drop query strings and break TLS on every mapped site.
 
 ## Development
 
@@ -179,7 +215,16 @@ Every engine is a thin `BaseBooruRepository` subclass — it only declares its e
 | Run tests | `flutter test` |
 | Add an engine | subclass `BaseBooruRepository`, register in `BooruRegistry` |
 
-The parser layer is covered by fixture-driven unit tests (`test/boorus/`) — each engine's parser is exercised against real-shaped responses plus malformed-input cases.
+The test suite is 85 cases across five layers: per-engine parsers against
+real-shaped and malformed responses (`test/boorus/`), the paging state machine,
+concurrent download writes, cross-server id isolation, and the hosts connection
+mapping — including a real TLS handshake against a local self-signed server.
+
+## Related Projects
+
+- [Boorusphere](https://github.com/nullxception/boorusphere) — UI/UX inspiration
+- [Boorusama](https://github.com/khoadng/Boorusama) — features & settings inspiration
+- [awesome-booru](https://awesome.re) — the booru ecosystem
 
 ## License
 
