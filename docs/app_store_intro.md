@@ -74,13 +74,14 @@ BooruNova 将多个 Booru 图站整合进同一个应用，用统一的搜索栏
 
 从 [GitHub Releases](https://github.com/qingzhuo-cn/boorunova/releases) 获取最新 APK。
 
-| ABI | 安装包 |
-|-----|--------|
-| arm64-v8a / x86_64（通用） | `app-release.apk` |
+| 安装包 | 体积 | 适用设备 |
+|--------|------|----------|
+| `app-arm64-v8a-release.apk` | 19 MB | 几乎所有手机 —— 推荐 |
+| `app-release.apk` | 38 MB | 模拟器与少数 x86_64 设备 |
+
+两个包用同一把正式密钥签名，可互相覆盖升级，服务器、收藏、历史都不会丢。
 
 **系统要求：** Android 8.0（API 26）及以上
-
-APK 已用正式密钥签名，直接覆盖安装即可升级——服务器、收藏、历史都不会丢。
 
 ---
 

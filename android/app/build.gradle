@@ -59,8 +59,23 @@ android {
         targetSdkVersion flutter.targetSdkVersion
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
-        ndk {
-            abiFilters 'arm64-v8a', 'x86_64'
+    }
+
+    // ABI 策略：产出 arm64 专用包与 universal 通用包。
+    //
+    // universal 覆盖 arm64-v8a + x86_64（约 37.7 MB），供模拟器和少数
+    // x86_64 设备使用；arm64 专用包约 18 MB，是绝大多数真机的选择。
+    // 两者相加比单个 universal 更省——用户通常只需要其中一个。
+    //
+    // 这里不能用 defaultConfig.ndk.abiFilters：Gradle 明确禁止
+    // abiFilters 与 splits.abi 同时存在，配置其一会让构建直接失败。
+    splits {
+        abi {
+            enable true
+            reset()
+            include 'arm64-v8a'
+            include 'x86_64'
+            universalApk true
         }
     }
 

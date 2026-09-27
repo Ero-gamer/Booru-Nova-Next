@@ -19,11 +19,13 @@
 
 ### 📲 立即下载
 
-**最新版本：[v1.8.0](https://github.com/qingzhuo-cn/boorunova/releases/latest)** —— `arm64-v8a / x86_64` 通用包，Android 8.0+
+**最新版本：[v1.8.0](https://github.com/qingzhuo-cn/boorunova/releases/latest)** —— Android 8.0+
 
-[⬇️ 下载 APK](https://github.com/qingzhuo-cn/boorunova/releases/latest/download/app-release.apk) &nbsp;·&nbsp;
-[全部版本](https://github.com/qingzhuo-cn/boorunova/releases) &nbsp;·&nbsp;
-[从源码运行](#快速开始)
+绝大多数手机装 **arm64** 那个（19 MB）就够了；**通用包**留给模拟器和少数 x86_64 设备。
+
+[⬇️ arm64-v8a（推荐）](https://github.com/qingzhuo-cn/boorunova/releases/latest/download/app-arm64-v8a-release.apk) &nbsp;·&nbsp;
+[⬇️ 通用包](https://github.com/qingzhuo-cn/boorunova/releases/latest/download/app-release.apk) &nbsp;·&nbsp;
+[全部版本](https://github.com/qingzhuo-cn/boorunova/releases)
 
 </div>
 
@@ -116,9 +118,12 @@
 
 从 [GitHub Releases](https://github.com/qingzhuo-cn/boorunova/releases) 下载最新 APK。
 
-| ABI | 安装包 |
-|-----|--------|
-| arm64-v8a / x86_64（通用） | `app-release.apk` |
+| 安装包 | 体积 | 适用设备 |
+|--------|------|----------|
+| `app-arm64-v8a-release.apk` | 19 MB | **几乎所有手机** —— 推荐 |
+| `app-release.apk` | 38 MB | 模拟器与少数 x86_64 设备（arm64 + x86_64） |
+
+两个包用同一把正式密钥签名，可以随意互换——Android 视它们为同一个应用，互相覆盖升级即可。
 
 **系统要求：Android 8.0（API 26）及以上。**
 

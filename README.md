@@ -21,11 +21,14 @@ English / [简体中文](README_cn.md)
 
 ### 📲 Try it now
 
-**Latest: [v1.8.0](https://github.com/qingzhuo-cn/boorunova/releases/latest)** — universal `arm64-v8a / x86_64`, Android 8.0+
+**Latest: [v1.8.0](https://github.com/qingzhuo-cn/boorunova/releases/latest)** — Android 8.0+
 
-[⬇️ Download APK](https://github.com/qingzhuo-cn/boorunova/releases/latest/download/app-release.apk) &nbsp;·&nbsp;
-[all releases](https://github.com/qingzhuo-cn/boorunova/releases) &nbsp;·&nbsp;
-[build from source](#quick-start)
+Most phones want the **arm64** build (19 MB). Use the **universal** one only if
+you're on an emulator or a rare x86_64 device.
+
+[⬇️ arm64-v8a (recommended)](https://github.com/qingzhuo-cn/boorunova/releases/latest/download/app-arm64-v8a-release.apk) &nbsp;·&nbsp;
+[⬇️ universal](https://github.com/qingzhuo-cn/boorunova/releases/latest/download/app-release.apk) &nbsp;·&nbsp;
+[all releases](https://github.com/qingzhuo-cn/boorunova/releases)
 
 </div>
 
@@ -118,9 +121,13 @@ Any site running one of these engines can be added by URL — the app auto-detec
 
 Grab the latest APK from [GitHub Releases](https://github.com/qingzhuo-cn/boorunova/releases).
 
-| ABI | Package |
-|-----|---------|
-| arm64-v8a / x86_64 (universal) | `app-release.apk` |
+| Package | Size | For |
+|---------|------|-----|
+| `app-arm64-v8a-release.apk` | 19 MB | **Almost every phone** — recommended |
+| `app-release.apk` | 38 MB | Emulators and rare x86_64 devices (arm64 + x86_64) |
+
+Both are signed with the same release key, so you can switch between them freely —
+Android treats them as the same app and a straight upgrade over the other.
 
 **Requires Android 8.0 (API 26) or newer.**
 
