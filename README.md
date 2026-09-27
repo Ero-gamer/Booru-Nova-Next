@@ -227,12 +227,6 @@ real-shaped and malformed responses (`test/boorus/`), the paging state machine,
 concurrent download writes, cross-server id isolation, and the hosts connection
 mapping — including a real TLS handshake against a local self-signed server.
 
-## Related Projects
-
-- [Boorusphere](https://github.com/nullxception/boorusphere) — UI/UX inspiration
-- [Boorusama](https://github.com/khoadng/Boorusama) — features & settings inspiration
-- [awesome-booru](https://awesome.re) — the booru ecosystem
-
 ## License
 
 [MIT](LICENSE) © BooruNova contributors
