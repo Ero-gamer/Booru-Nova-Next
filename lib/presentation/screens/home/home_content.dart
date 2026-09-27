@@ -1,5 +1,4 @@
 import 'package:boorunova/boorus/engine/booru_repository.dart';
-import 'package:boorunova/data/repository/booru/entity/post.dart';
 import 'package:boorunova/data/repository/favorites/user_favorite_repo.dart';
 import 'package:boorunova/foundation/util/batch_ops.dart';
 import 'package:boorunova/presentation/l10n/app_strings.dart';
@@ -16,42 +15,46 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
 
+/// 底层异常 → 面向用户的提示。
+///
+/// 全部走 T 而非硬编码中文：这张表在英文界面下同样会被读到。
 String _friendlyError(String raw) {
+  if (raw == kNoServerSelected) return T.noServerSelected;
   if (raw.contains('connection timeout') ||
       raw.contains('Connection timeout') ||
       raw.contains('connectionTimeout')) {
-    return '连接超时，请检查网络或尝试使用 Hosts 功能';
+    return T.errTimeout;
   }
   if (raw.contains('receiveTimeout') || raw.contains('Receive timeout')) {
-    return '服务器响应超时，请稍后重试';
+    return T.errReceiveTimeout;
   }
   if (raw.contains('Connection refused')) {
-    return '连接被拒绝，请检查服务器地址是否正确';
+    return T.errRefused;
   }
   if (raw.contains('Failed host lookup') ||
       raw.contains('No address associated with hostname')) {
-    return '域名解析失败，请检查网络或服务器地址';
+    return T.errDns;
   }
   if (raw.contains('HandshakeException') || raw.contains('CERTIFICATE')) {
-    return '安全连接失败（证书校验未通过），请检查系统时间或网络环境';
+    return T.errTls;
   }
   if (RegExp(r'status (code )?of 403').hasMatch(raw)) {
-    return '访问被拒绝（403），可能需要登录或 API 密钥';
+    return T.err403;
   }
   if (RegExp(r'status (code )?of 404').hasMatch(raw)) {
-    return '资源不存在（404），服务器地址可能已变更';
+    return T.err404;
   }
   if (RegExp(r'status (code )?of 429').hasMatch(raw)) {
-    return '请求过于频繁（429），请稍后再试';
+    return T.err429;
   }
   if (RegExp(r'status (code )?of 5\d\d').hasMatch(raw)) {
-    return '服务器内部错误（5xx），请稍后再试';
+    return T.err5xx;
   }
   if (raw.contains('SocketException')) {
-    return '网络异常，请检查网络连接';
+    return T.errNetwork;
   }
   if (raw.contains('XML') || raw.contains('parser') || raw.contains('json')) {
-    return '服务器返回数据异常，可能不是有效的 Booru 站点';
+    return T.errBadPayload;
   }
   final lines = raw.split('\n');
   return lines.length > 2 ? '${lines[0]}\n${lines[1]}' : raw;
@@ -123,7 +126,7 @@ class _HomeContentState extends ConsumerState<HomeContent> {
     );
     final pageState = ref.watch(booruPageStateProvider);
     final currentQuery = ref.read(booruPageStateProvider.notifier).currentQuery;
-    final gridCols = ref.watch(gridColumnsProvider);
+    final gridCols = ref.watch(settingsProvider).gridColumns;
     final selectedIds = ref.watch(batchSelectionProvider);
     final selectionNotifier = ref.read(batchSelectionProvider.notifier);
     final isSelectionMode = selectedIds.isNotEmpty;
@@ -142,142 +145,169 @@ class _HomeContentState extends ConsumerState<HomeContent> {
       children: [
         Positioned.fill(
           child: RefreshIndicator(
-                  onRefresh: () async {
-                    selectionNotifier.clear();
-                    await ref.read(booruPageStateProvider.notifier).refresh();
-                  },
-                  child: CustomScrollView(
-                    controller: _scrollController,
-                    slivers: [
-                      if (isSelectionMode)
-                        SliverToBoxAdapter(
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 8),
-                            child: Row(
-                              children: [
-                                Icon(Icons.checklist,
-                                    size: 18,
-                                    color: Theme.of(context).colorScheme.primary),
-                                const SizedBox(width: 8),
-                                Text(
-                                  '${selectedIds.length} ${T.selected}',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .titleSmall
-                                      ?.copyWith(
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .primary,
-                                      ),
+            onRefresh: () async {
+              selectionNotifier.clear();
+              await ref.read(booruPageStateProvider.notifier).refresh();
+            },
+            child: CustomScrollView(
+              controller: _scrollController,
+              slivers: [
+                if (isSelectionMode)
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
+                      child: Row(
+                        children: [
+                          Icon(Icons.checklist,
+                              size: 18,
+                              color: Theme.of(context).colorScheme.primary),
+                          const SizedBox(width: 8),
+                          Text(
+                            '${selectedIds.length} ${T.selected}',
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleSmall
+                                ?.copyWith(
+                                  color: Theme.of(context).colorScheme.primary,
                                 ),
-                                const Spacer(),
-                                TextButton(
-                                  onPressed: () {
-                                    selectionNotifier
-                                        .selectAll(filteredPosts.map((p) => p.id));
-                                  },
-                                  child: Text(T.selectAll),
-                                ),
-                                TextButton(
-                                  onPressed: selectionNotifier.clear,
-                                  child: Text(T.clear),
-                                ),
-                              ],
-                            ),
                           ),
-                        ),
-                      if (pageState.isLoading && filteredPosts.isEmpty)
-                        SliverToBoxAdapter(
-                          child: SizedBox(
-                            height: MediaQuery.of(context).size.height * 0.4,
-                            child: const Center(child: CircularProgressIndicator()),
-                          ),
-                        )
-                      else if (filteredPosts.isEmpty && pageState.error != null)
-                        SliverFillRemaining(
-                          child: EmptyState(
-                            icon: Icons.cloud_off,
-                            title: T.somethingWentWrong,
-                            hint: _friendlyError(pageState.error!),
-                            action: OutlinedButton.icon(
-                              onPressed: () =>
-                                  ref.read(booruPageStateProvider.notifier).refresh(),
-                              icon: const Icon(Icons.refresh),
-                              label: Text(T.retry),
-                            ),
-                          ),
-                        )
-                      else if (filteredPosts.isEmpty)
-                        SliverFillRemaining(
-                          child: EmptyState(
-                            icon: Icons.image_search,
-                            title: T.noSearchResults,
-                            hint: T.tryDifferentSearch,
-                          ),
-                        )
-                      else ...[
-                        SliverToBoxAdapter(
-                          child: Padding(
-                            padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
-                            child: Text('${filteredPosts.length} ${T.results}',
-                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: Theme.of(context).colorScheme.onSurfaceVariant)),
-                          ),
-                        ),
-                        SliverPadding(
-                          // 底部留白让最后一排内容能滚出悬浮玻璃栏
-                          padding: const EdgeInsets.fromLTRB(10, 0, 10, 96),
-                            sliver: Timeline(
-                              key: ValueKey('grid_$gridCols'),
-                              crossAxisCount: gridCols,
-                              posts: filteredPosts,
-                              enablePeekPreview: !isSelectionMode,
-                              onFavorite: (index) {
-                                final post = filteredPosts[index];
-                                final repo = ref.read(userFavoritesRepoProvider);
-                                repo.toggle(BooruPost(
-                                  id: post.id, serverId: post.serverId, thumbnailUrl: post.thumbnailUrl,
-                                  sampleUrl: post.sampleUrl, originalUrl: post.originalUrl,
-                                  tags: post.tags, tagGeneral: post.tagGeneral,
-                                  tagArtist: post.tagArtist, tagCharacter: post.tagCharacter,
-                                  tagCopyright: post.tagCopyright, tagMeta: post.tagMeta,
-                                  aspectRatio: post.aspectRatio, width: post.width,
-                                  height: post.height, rating: post.rating, score: post.score,
-                                  source: post.source, postUrl: post.postUrl,
-                                ));
-                                ref.invalidate(userFavoritesRepoProvider);
-                              },
-                            isLoading: pageState.isLoading,
-                            selectionMode: isSelectionMode,
-                            selectedIds: selectedIds,
-                            onPostTap: (index) {
-                              context.push('/post/${filteredPosts[index].id}',
-                                  extra: <String, dynamic>{
-                                    'posts': filteredPosts,
-                                    'initialIndex': index,
-                                  });
+                          const Spacer(),
+                          TextButton(
+                            onPressed: () {
+                              selectionNotifier
+                                  .selectAll(filteredPosts.map(postKeyOf));
                             },
-                            onLongPress: (index) {
-                              selectionNotifier.toggle(filteredPosts[index].id);
-                            },
-                            onSelectionToggle: (index) {
-                              selectionNotifier.toggle(filteredPosts[index].id);
-                            },
+                            child: Text(T.selectAll),
                           ),
-                        ),
-                        if (pageState.isLoading)
-                          const SliverToBoxAdapter(
-                            child: Padding(
-                              padding: EdgeInsets.all(16),
-                              child: Center(child: CircularProgressIndicator()),
-                            ),
+                          TextButton(
+                            onPressed: selectionNotifier.clear,
+                            child: Text(T.clear),
                           ),
-                      ],
-                    ],
+                        ],
+                      ),
+                    ),
                   ),
-                ),
-              ),
+                if (pageState.isLoading && filteredPosts.isEmpty)
+                  SliverToBoxAdapter(
+                    child: SizedBox(
+                      height: MediaQuery.of(context).size.height * 0.4,
+                      child: const Center(child: CircularProgressIndicator()),
+                    ),
+                  )
+                else if (filteredPosts.isEmpty && pageState.error != null)
+                  SliverFillRemaining(
+                    child: EmptyState(
+                      icon: Icons.cloud_off,
+                      title: T.somethingWentWrong,
+                      hint: _friendlyError(pageState.error!),
+                      action: OutlinedButton.icon(
+                        onPressed: () =>
+                            ref.read(booruPageStateProvider.notifier).refresh(),
+                        icon: const Icon(Icons.refresh),
+                        label: Text(T.retry),
+                      ),
+                    ),
+                  )
+                else if (filteredPosts.isEmpty)
+                  SliverFillRemaining(
+                    child: EmptyState(
+                      icon: Icons.image_search,
+                      title: T.noSearchResults,
+                      hint: T.tryDifferentSearch,
+                    ),
+                  )
+                else ...[
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
+                      child: Text('${filteredPosts.length} ${T.results}',
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodySmall
+                              ?.copyWith(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant)),
+                    ),
+                  ),
+                  SliverPadding(
+                    // 底部留白让最后一排内容能滚出悬浮玻璃栏
+                    padding: const EdgeInsets.fromLTRB(10, 0, 10, 96),
+                    sliver: Timeline(
+                      key: ValueKey('grid_$gridCols'),
+                      crossAxisCount: gridCols,
+                      posts: filteredPosts,
+                      enablePeekPreview: !isSelectionMode,
+                      onFavorite: (index) {
+                        final post = filteredPosts[index];
+                        final repo = ref.read(userFavoritesRepoProvider);
+                        repo.toggle(post.toPost());
+                        ref.invalidate(userFavoritesRepoProvider);
+                      },
+                      isLoading: pageState.isLoading,
+                      selectionMode: isSelectionMode,
+                      selectedIds: selectedIds,
+                      onPostTap: (index) {
+                        context.push('/post/${filteredPosts[index].id}',
+                            extra: <String, dynamic>{
+                              'posts': filteredPosts,
+                              'initialIndex': index,
+                            });
+                      },
+                      onLongPress: (index) {
+                        selectionNotifier
+                            .toggle(postKeyOf(filteredPosts[index]));
+                      },
+                      onSelectionToggle: (index) {
+                        selectionNotifier
+                            .toggle(postKeyOf(filteredPosts[index]));
+                      },
+                    ),
+                  ),
+                  if (pageState.isLoading)
+                    const SliverToBoxAdapter(
+                      child: Padding(
+                        padding: EdgeInsets.all(16),
+                        child: Center(child: CircularProgressIndicator()),
+                      ),
+                    ),
+                  // 翻页失败：内容保留，末尾给出显式重试入口。
+                  // 之前这里静默吞掉错误，滚动会无限重试坏掉的请求。
+                  if (pageState.pagingFailed)
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
+                        child: Column(
+                          children: [
+                            Text(
+                              T.loadMoreFailed,
+                              textAlign: TextAlign.center,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSurfaceVariant),
+                            ),
+                            const SizedBox(height: 8),
+                            OutlinedButton.icon(
+                              onPressed: () => ref
+                                  .read(booruPageStateProvider.notifier)
+                                  .retryLoadMore(),
+                              icon: const Icon(Icons.refresh, size: 18),
+                              label: Text(T.retryLoadMore),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              ],
+            ),
+          ),
+        ),
         // 底部悬浮玻璃搜索栏：内容从玻璃下方滚过，模糊才有实际效果
         Positioned(
           left: 12,
@@ -285,21 +315,21 @@ class _HomeContentState extends ConsumerState<HomeContent> {
           bottom: 12,
           child: GlassContainer(
             child: HomeSearchBar(
-          leading: widget.favicon,
-          collapsed: _searchCollapsed,
-          currentQuery: currentQuery,
-          onScrollToTop: () {
-            if (_scrollController.hasClients) {
-              _scrollController.animateTo(0,
-                  duration: const Duration(milliseconds: 500),
-                  curve: Curves.easeInOut);
-            }
-          },
-          hintText: T.searchHint,
-          onSubmitted: (query) {
-            selectionNotifier.clear();
-            ref.read(booruPageStateProvider.notifier).search(query);
-          },
+              leading: widget.favicon,
+              collapsed: _searchCollapsed,
+              currentQuery: currentQuery,
+              onScrollToTop: () {
+                if (_scrollController.hasClients) {
+                  _scrollController.animateTo(0,
+                      duration: const Duration(milliseconds: 500),
+                      curve: Curves.easeInOut);
+                }
+              },
+              hintText: T.searchHint,
+              onSubmitted: (query) {
+                selectionNotifier.clear();
+                ref.read(booruPageStateProvider.notifier).search(query);
+              },
             ),
           ),
         ),
@@ -316,7 +346,8 @@ class _HomeContentState extends ConsumerState<HomeContent> {
                 isDownloading: _batchDownloading,
                 progress: _batchProgress,
                 onDownload: () => _batchDownload(filteredPosts, selectedIds),
-                onFavorite: () => _batchFavorite(context, filteredPosts, selectedIds),
+                onFavorite: () =>
+                    _batchFavorite(context, filteredPosts, selectedIds),
                 onShare: () => _batchShare(filteredPosts, selectedIds),
                 onClear: selectionNotifier.clear,
               ),
@@ -328,20 +359,29 @@ class _HomeContentState extends ConsumerState<HomeContent> {
 
   Future<void> _batchDownload(
       List<PostSummary> posts, Set<String> selectedIds) async {
-    final selected = posts.where((p) => selectedIds.contains(p.id)).toList();
+    final selected =
+        posts.where((p) => selectedIds.contains(postKeyOf(p))).toList();
     if (selected.isEmpty) return;
 
     setState(() => _batchDownloading = true);
+    // 与单个下载（post_viewer._download）共用同一套质量选择逻辑：
+    // 设置为 sample 时批量也只取 sample，否则用户设了省流量却被
+    // 静默地按原图批量下载。
+    final settings = ref.read(settingsProvider);
     final urls = selected
-        .map((p) =>
-            p.originalUrl.isNotEmpty ? p.originalUrl : p.sampleUrl)
+        .map((p) => downloadUrlOf(
+              p,
+              preferSample: settings.downloadQuality == 'sample',
+            ))
         .toList();
     final ids = selected.map((p) => p.id).toList();
+    final namespaces = selected.map((p) => p.serverId).toList();
 
-    final downloadPath = ref.read(settingsProvider).downloadPath;
+    final downloadPath = settings.downloadPath;
     final result = await BatchOps.downloadAll(
       urls,
       ids,
+      namespaces: namespaces,
       downloadPath: downloadPath,
       onItemProgress: (done, total) {
         if (mounted && _batchDownloading) {
@@ -367,34 +407,16 @@ class _HomeContentState extends ConsumerState<HomeContent> {
     }
   }
 
-  Future<void> _batchFavorite(
-      BuildContext context, List<PostSummary> posts, Set<String> selectedIds) async {
-    final selected = posts.where((p) => selectedIds.contains(p.id)).toList();
+  Future<void> _batchFavorite(BuildContext context, List<PostSummary> posts,
+      Set<String> selectedIds) async {
+    final selected =
+        posts.where((p) => selectedIds.contains(postKeyOf(p))).toList();
     if (selected.isEmpty) return;
 
     final repo = ref.read(userFavoritesRepoProvider);
     for (final post in selected) {
       if (!repo.isFavorite(post.id, serverId: post.serverId)) {
-        await repo.toggle(BooruPost(
-          id: post.id,
-          serverId: post.serverId,
-          thumbnailUrl: post.thumbnailUrl,
-          sampleUrl: post.sampleUrl,
-          originalUrl: post.originalUrl,
-          tags: post.tags,
-          tagGeneral: post.tagGeneral,
-          tagArtist: post.tagArtist,
-          tagCharacter: post.tagCharacter,
-          tagCopyright: post.tagCopyright,
-          tagMeta: post.tagMeta,
-          aspectRatio: post.aspectRatio,
-          width: post.width,
-          height: post.height,
-          rating: post.rating,
-          score: post.score,
-          source: post.source,
-          postUrl: post.postUrl,
-        ));
+        await repo.toggle(post.toPost());
       }
     }
     ref.invalidate(userFavoritesRepoProvider);
@@ -405,15 +427,12 @@ class _HomeContentState extends ConsumerState<HomeContent> {
     );
   }
 
-  void _batchShare(
-      List<PostSummary> posts, Set<String> selectedIds) {
-    final selected = posts.where((p) => selectedIds.contains(p.id)).toList();
+  void _batchShare(List<PostSummary> posts, Set<String> selectedIds) {
+    final selected =
+        posts.where((p) => selectedIds.contains(postKeyOf(p))).toList();
     if (selected.isEmpty) return;
 
-    final urls = selected
-        .map((p) => p.postUrl ?? p.originalUrl)
-        .where((u) => u.isNotEmpty)
-        .toList();
+    final urls = selected.map(permalinkOf).where((u) => u.isNotEmpty).toList();
     if (urls.isEmpty) return;
 
     Share.share(urls.join('\n'));
@@ -447,41 +466,40 @@ class _BatchActionBar extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
       child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            IconButton(
-              icon: isDownloading
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.download_outlined),
-              tooltip: T.downloadSelected,
-              onPressed: isDownloading ? null : onDownload,
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          IconButton(
+            icon: isDownloading
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.download_outlined),
+            tooltip: T.downloadSelected,
+            onPressed: isDownloading ? null : onDownload,
+          ),
+          if (isDownloading && progress != null)
+            Padding(
+              padding: const EdgeInsets.only(left: 4),
+              child: Text(progress!, style: const TextStyle(fontSize: 13)),
             ),
-            if (isDownloading && progress != null)
-              Padding(
-                padding: const EdgeInsets.only(left: 4),
-                child: Text(progress!,
-                    style: const TextStyle(fontSize: 13)),
-              ),
-            IconButton(
-              icon: const Icon(Icons.favorite_outline),
-              tooltip: T.favoriteSelected,
-              onPressed: onFavorite,
-            ),
-            IconButton(
-              icon: const Icon(Icons.share_outlined),
-              tooltip: T.shareSelected,
-              onPressed: onShare,
-            ),
-            IconButton(
-              icon: const Icon(Icons.close),
-              tooltip: T.clearSelection,
-              onPressed: onClear,
-            ),
-          ],
+          IconButton(
+            icon: const Icon(Icons.favorite_outline),
+            tooltip: T.favoriteSelected,
+            onPressed: onFavorite,
+          ),
+          IconButton(
+            icon: const Icon(Icons.share_outlined),
+            tooltip: T.shareSelected,
+            onPressed: onShare,
+          ),
+          IconButton(
+            icon: const Icon(Icons.close),
+            tooltip: T.clearSelection,
+            onPressed: onClear,
+          ),
+        ],
       ),
     );
   }

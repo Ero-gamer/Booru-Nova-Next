@@ -19,6 +19,7 @@ class BatchOps {
   static Future<BatchDownloadResult> downloadAll(
     List<String> urls,
     List<String> postIds, {
+    List<String>? namespaces,
     String downloadPath = '',
     void Function(int done, int total)? onItemProgress,
   }) async {
@@ -30,7 +31,9 @@ class BatchOps {
 
     Future<void> runOne(int i) async {
       final id = i < postIds.length ? postIds[i] : null;
-      final item = await _downloadOne(urls[i], id, dir.path);
+      final namespace =
+          namespaces != null && i < namespaces.length ? namespaces[i] : null;
+      final item = await _downloadOne(urls[i], id, namespace, dir.path);
       results[i] = item;
       done += 1;
       onItemProgress?.call(done, urls.length);
@@ -56,13 +59,14 @@ class BatchOps {
   }
 
   static Future<BatchItem> _downloadOne(
-      String url, String? postId, String dirPath) async {
+      String url, String? postId, String? namespace, String dirPath) async {
     try {
       if (!url.split('/').last.contains('.')) {
         return BatchItem(url: url, success: false, error: 'No file extension');
       }
 
-      final path = '$dirPath/$uniqueFileName(url, postId: postId)';
+      final path =
+          '$dirPath/${uniqueFileName(url, postId: postId, namespace: namespace)}';
       final dio = DioFactory.createDownload();
       await dio.download(url, path);
       await Gal.putImage(path);
@@ -74,6 +78,7 @@ class BatchOps {
           imageUrl: url,
           localPath: path,
           downloadedAt: DateTime.now(),
+          serverId: namespace ?? '',
         ));
       }
 

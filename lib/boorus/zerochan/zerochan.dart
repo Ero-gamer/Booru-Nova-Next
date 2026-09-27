@@ -18,8 +18,7 @@ class Zerochan extends Booru {
   String get baseUrl => 'https://www.zerochan.net';
 
   @override
-  BooruCapabilities get capabilities => const BooruCapabilities(        comments: false,
-      );
+  BooruCapabilities get capabilities => const BooruCapabilities();
 
   @override
   Map<String, String> get defaultHeaders => {

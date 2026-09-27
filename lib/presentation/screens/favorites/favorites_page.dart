@@ -1,6 +1,7 @@
 import 'package:boorunova/data/repository/booru/entity/post.dart';
 import 'package:boorunova/data/repository/favorites/user_favorite_repo.dart';
 import 'package:boorunova/presentation/l10n/app_strings.dart';
+import 'package:boorunova/presentation/widgets/common/rating_badge.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -136,7 +137,10 @@ class _FavoriteDetailSheet extends ConsumerWidget {
           Row(
             children: [
               Text('${T.rating}: ${post.rating.toUpperCase()}',
-                  style: Theme.of(context).textTheme.bodyMedium),
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodyMedium
+                      ?.copyWith(color: ratingColor(post.rating))),
               const SizedBox(width: 16),
               Text('${T.score}: ${post.score}',
                   style: Theme.of(context).textTheme.bodyMedium),

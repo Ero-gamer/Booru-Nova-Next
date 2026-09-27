@@ -20,12 +20,6 @@ class Danbooru extends Booru {
   @override
   BooruCapabilities get capabilities => const BooruCapabilities(
         pools: true,
-        forums: true,
-        comments: true,
-        notes: true,
-        voting: true,
-        artistPages: true,
-        characterPages: true,        syntaxHighlighting: true,
       );
 
   @override

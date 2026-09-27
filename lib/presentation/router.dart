@@ -2,12 +2,10 @@ import 'package:boorunova/boorus/engine/booru_repository.dart';
 import 'package:boorunova/boorus/engine/booru_type.dart';
 import 'package:boorunova/data/repository/server/user_server_repo.dart';
 import 'package:boorunova/presentation/provider/app_settings.dart';
-import 'package:boorunova/presentation/screens/artists/artists_page.dart';
 import 'package:boorunova/presentation/screens/blacklist/blacklist_page.dart';
 import 'package:boorunova/presentation/screens/downloads/downloads_page.dart';
 import 'package:boorunova/presentation/screens/explore/explore_page.dart';
 import 'package:boorunova/presentation/screens/favorites/favorites_page.dart';
-import 'package:boorunova/presentation/screens/forum/forum_page.dart';
 import 'package:boorunova/presentation/screens/history/history_page.dart';
 import 'package:boorunova/presentation/screens/history/search_history_page.dart';
 import 'package:boorunova/presentation/screens/home/home_page.dart';
@@ -66,6 +64,15 @@ Page<T> _slidePage<T>(Widget child, {bool reduceAnimations = false}) {
 }
 
 final routerProvider = Provider<GoRouter>((ref) {
+  // 「减少动画」此前只有参数定义、33 个调用点无一传值，等于设置项失效。
+  // 这里从 settings 读取并注入，转场时长真正受设置控制。
+  // 用 ref.read 而非 watch：切换该选项不应重建整个 GoRouter（那会丢掉
+  // 导航栈），只需要后续新建的页面读到最新值。
+  Page<T> page<T>(Widget child) => _slidePage(
+        child,
+        reduceAnimations: ref.read(settingsProvider).reduceAnimations,
+      );
+
   return GoRouter(
     navigatorKey: navigatorKey,
     initialLocation: '/',
@@ -85,32 +92,32 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/',
         name: 'home',
-        pageBuilder: (context, state) => _slidePage(const HomePage()),
+        pageBuilder: (context, state) => page(const HomePage()),
       ),
       GoRoute(
         path: '/onboarding',
         name: 'onboarding',
-        pageBuilder: (context, state) => _slidePage(const OnboardingPage()),
+        pageBuilder: (context, state) => page(const OnboardingPage()),
       ),
       GoRoute(
         path: '/favorites',
         name: 'favorites',
-        pageBuilder: (context, state) => _slidePage(const FavoritesPage()),
+        pageBuilder: (context, state) => page(const FavoritesPage()),
       ),
       GoRoute(
         path: '/history',
         name: 'history',
-        pageBuilder: (context, state) => _slidePage(const HistoryPage()),
+        pageBuilder: (context, state) => page(const HistoryPage()),
       ),
       GoRoute(
         path: '/downloads',
         name: 'downloads',
-        pageBuilder: (context, state) => _slidePage(const DownloadsPage()),
+        pageBuilder: (context, state) => page(const DownloadsPage()),
       ),
       GoRoute(
         path: '/search-history',
         name: 'search-history',
-        pageBuilder: (context, state) => _slidePage(const SearchHistoryPage()),
+        pageBuilder: (context, state) => page(const SearchHistoryPage()),
       ),
       GoRoute(
         path: '/search',
@@ -119,18 +126,18 @@ final routerProvider = Provider<GoRouter>((ref) {
           final extra = state.extra;
           final initialQuery =
               extra is Map ? (extra['initialQuery'] as String? ?? '') : '';
-          return _slidePage(SearchPage(initialQuery: initialQuery));
+          return page(SearchPage(initialQuery: initialQuery));
         },
       ),
       GoRoute(
         path: '/explore',
         name: 'explore',
-        pageBuilder: (context, state) => _slidePage(const ExplorePage()),
+        pageBuilder: (context, state) => page(const ExplorePage()),
       ),
       GoRoute(
         path: '/pools',
         name: 'pools',
-        pageBuilder: (context, state) => _slidePage(const PoolsPage()),
+        pageBuilder: (context, state) => page(const PoolsPage()),
       ),
       GoRoute(
         path: '/pools/:id',
@@ -138,7 +145,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) {
           final extra = state.extra;
           final name = extra is Map ? (extra['name'] as String? ?? '') : '';
-          return _slidePage(PoolDetailPage(
+          return page(PoolDetailPage(
             poolId: state.pathParameters['id']!,
             poolName: name,
           ));
@@ -147,84 +154,75 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/blacklist',
         name: 'blacklist',
-        pageBuilder: (context, state) => _slidePage(const BlacklistPage()),
+        pageBuilder: (context, state) => page(const BlacklistPage()),
       ),
-      GoRoute(
-        path: '/forum',
-        name: 'forum',
-        pageBuilder: (context, state) => _slidePage(const ForumPage()),
-      ),
-      GoRoute(
-        path: '/artists',
-        name: 'artists',
-        pageBuilder: (context, state) => _slidePage(const ArtistsPage()),
-      ),
+
       GoRoute(
         path: '/settings',
         name: 'settings',
-        pageBuilder: (context, state) => _slidePage(const SettingsPage()),
+        pageBuilder: (context, state) => page(const SettingsPage()),
         routes: [
           GoRoute(
             path: 'hosts',
             name: 'settings-hosts',
-            pageBuilder: (context, state) => _slidePage(const HostsPage()),
+            pageBuilder: (context, state) => page(const HostsPage()),
           ),
           GoRoute(
             path: 'viewer',
             name: 'settings-viewer',
-            pageBuilder: (context, state) => _slidePage(const ViewerSettingsPage()),
+            pageBuilder: (context, state) => page(const ViewerSettingsPage()),
           ),
           GoRoute(
             path: 'appearance',
             name: 'settings-appearance',
-            pageBuilder: (context, state) => _slidePage(const AppearanceSettingsPage()),
+            pageBuilder: (context, state) => page(const AppearanceSettingsPage()),
           ),
           GoRoute(
             path: 'language',
             name: 'settings-language',
-            pageBuilder: (context, state) => _slidePage(const LanguageSettingsPage()),
+            pageBuilder: (context, state) => page(const LanguageSettingsPage()),
           ),
           GoRoute(
             path: 'gestures',
             name: 'settings-gestures',
-            pageBuilder: (context, state) => _slidePage(const GesturesPage()),
+            pageBuilder: (context, state) => page(const GesturesPage()),
           ),
           GoRoute(
             path: 'search',
             name: 'settings-search',
-            pageBuilder: (context, state) => _slidePage(const SearchSettingsPage()),
+            pageBuilder: (context, state) => page(const SearchSettingsPage()),
           ),
           GoRoute(
             path: 'download',
             name: 'settings-download',
-            pageBuilder: (context, state) => _slidePage(const DownloadSettingsPage()),
+            pageBuilder: (context, state) => page(const DownloadSettingsPage()),
           ),
           GoRoute(
             path: 'data',
             name: 'settings-data',
-            pageBuilder: (context, state) => _slidePage(const DataStoragePage()),
+            pageBuilder: (context, state) => page(const DataStoragePage()),
           ),
           GoRoute(
             path: 'backup',
             name: 'settings-backup',
-            pageBuilder: (context, state) => _slidePage(const DataBackupPage()),
+            pageBuilder: (context, state) => page(const DataBackupPage()),
           ),
           GoRoute(
             path: 'privacy',
             name: 'settings-privacy',
-            pageBuilder: (context, state) => _slidePage(const PrivacyPage()),
+            pageBuilder: (context, state) => page(const PrivacyPage()),
           ),
           GoRoute(
             path: 'about',
             name: 'settings-about',
-            pageBuilder: (context, state) => _slidePage(const AboutSettingsPage()),
+            pageBuilder: (context, state) => page(const AboutSettingsPage()),
           ),
         ],
       ),
       GoRoute(
         path: '/servers',
         name: 'servers',
-        pageBuilder: (context, state) => _slidePage(const ServerPage()),
+        pageBuilder: (context, state) => page(const ServerPage()),
         routes: [
           GoRoute(
             path: 'editor',
@@ -232,7 +230,7 @@ final routerProvider = Provider<GoRouter>((ref) {
             pageBuilder: (context, state) {
               final extra = state.extra;
               if (extra is Map) {
-                return _slidePage(ServerEditorPage(
+                return page(ServerEditorPage(
                   serverId: extra['serverId'] as String?,
                   template: extra['template'] as BooruSiteTemplate?,
                   initialUrl: extra['initialUrl'] as String?,
@@ -240,7 +238,7 @@ final routerProvider = Provider<GoRouter>((ref) {
                   initialType: extra['initialType'] as BooruType?,
                 ));
               }
-              return _slidePage(const _InvalidRoutePage());
+              return page(const _InvalidRoutePage());
             },
           ),
           GoRoute(
@@ -250,7 +248,7 @@ final routerProvider = Provider<GoRouter>((ref) {
               final extra = state.extra;
               final initialUrl =
                   extra is Map ? (extra['initialUrl'] as String? ?? '') : '';
-              return _slidePage(ServerScanPage(initialUrl: initialUrl));
+              return page(ServerScanPage(initialUrl: initialUrl));
             },
           ),
         ],
@@ -264,10 +262,10 @@ final routerProvider = Provider<GoRouter>((ref) {
             final posts = extra['posts'];
             final initialIndex = extra['initialIndex'];
             if (posts is List<PostSummary> && initialIndex is int && initialIndex >= 0 && initialIndex < posts.length) {
-              return _slidePage(PostViewer(posts: posts, initialIndex: initialIndex));
+              return page(PostViewer(posts: posts, initialIndex: initialIndex));
             }
           }
-          return _slidePage(const _InvalidRoutePage());
+          return page(const _InvalidRoutePage());
         },
         routes: [
           GoRoute(
@@ -276,9 +274,9 @@ final routerProvider = Provider<GoRouter>((ref) {
             pageBuilder: (context, state) {
               final post = state.extra;
               if (post is PostSummary) {
-                return _slidePage(PostDetailPage(post: post));
+                return page(PostDetailPage(post: post));
               }
-              return _slidePage(const _InvalidRoutePage());
+              return page(const _InvalidRoutePage());
             },
           ),
         ],

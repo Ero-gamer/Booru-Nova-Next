@@ -15,19 +15,43 @@ class GesturesPage extends ConsumerWidget {
       appBar: AppBar(title: Text(T.gestures)),
       body: ListView(children: [
         SectionHeader(title: T.sectionViewer),
-        _tile(T.swipeDownAction, s.swipeDownAction, {'close': T.actionClose, 'detail': T.actionDetail}, n.setSwipeDownAction, s.swipeDownAction),
-        _tile(T.tapAction, s.tapAction, {'detail': T.actionDetail, 'none': T.actionNone}, n.setTapAction, s.tapAction),
-        _tile(T.doubleTapAction, s.doubleTapAction, {'zoom': T.actionZoom, 'fav': T.actionFav}, n.setDoubleTapAction, s.doubleTapAction),
-        _tile(T.longPressAction, s.longPressAction, {'fav': T.actionFav, 'none': T.actionNone}, n.setLongPressAction, s.longPressAction),
+        _tile(
+          context,
+          T.swipeDownAction,
+          s.swipeDownAction,
+          {'close': T.actionClose, 'detail': T.actionDetail},
+          n.setSwipeDownAction,
+          s.swipeDownAction,
+          // 下滑手势与翻页轴互斥：纵向翻页时纵轴被 PageView 占用，
+          // 该设置无法生效。与其让用户以为设了没用，不如说清楚。
+          hint: s.viewerSwipeMode ? null : T.swipeDownNeedsHorizontal,
+        ),
+        _tile(context, T.tapAction, s.tapAction, {'detail': T.actionDetail, 'none': T.actionNone}, n.setTapAction, s.tapAction),
+        _tile(context, T.doubleTapAction, s.doubleTapAction, {'zoom': T.actionZoom, 'fav': T.actionFav}, n.setDoubleTapAction, s.doubleTapAction),
+        _tile(context, T.longPressAction, s.longPressAction, {'fav': T.actionFav, 'none': T.actionNone}, n.setLongPressAction, s.longPressAction),
       ]),
     );
   }
 
-  Widget _tile(String title, String current, Map<String, String> labels,
-      void Function(String) onChanged, String value) {
+  Widget _tile(BuildContext context, String title, String current,
+      Map<String, String> labels, void Function(String) onChanged, String value,
+      {String? hint}) {
     return ListTile(
       title: Text(title, style: const TextStyle(fontSize: 14)),
-      subtitle: Text(labels[value] ?? value, style: const TextStyle(fontSize: 12)),
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(labels[value] ?? value, style: const TextStyle(fontSize: 12)),
+          if (hint != null)
+            Text(
+              hint,
+              style: TextStyle(
+                fontSize: 11,
+                color: Theme.of(context).colorScheme.error,
+              ),
+            ),
+        ],
+      ),
       trailing: DropdownButton<String>(
         value: current, underline: const SizedBox(),
         items: labels.entries

@@ -22,6 +22,7 @@ class AppSettings {
     this.longPressAction = 'fav',
     this.downloadPath = '',
     this.reduceAnimations = false,
+    this.gridColumns = defaultGridColumns,
     this.language = 'zh',
     this.onboardingComplete = false,
   });
@@ -43,6 +44,9 @@ class AppSettings {
         longPressAction: json['longPressAction'] as String? ?? 'fav',
         downloadPath: json['downloadPath'] as String? ?? '',
         reduceAnimations: json['reduceAnimations'] as bool? ?? false,
+        gridColumns: ((json['gridColumns'] as num?)?.toInt()
+                .clamp(minGridColumns, maxGridColumns) ??
+            defaultGridColumns),
         language: json['language'] as String? ?? 'zh',
         onboardingComplete: json['onboardingComplete'] as bool? ?? false,
       );
@@ -60,6 +64,10 @@ class AppSettings {
   final String longPressAction;
   final String downloadPath;
   final bool reduceAnimations;
+
+  /// 瀑布流列数（2–6）。此前是内存 StateProvider，杀进程即重置回 3，
+  /// 用户调好的布局留不住。clamp 兜住损坏数据，越界值回落到 3。
+  final int gridColumns;
 
   /// 界面语言：'zh' | 'en'
   final String language;
@@ -81,6 +89,7 @@ class AppSettings {
     String? longPressAction,
     String? downloadPath,
     bool? reduceAnimations,
+    int? gridColumns,
     String? language,
     bool? onboardingComplete,
   }) =>
@@ -98,6 +107,7 @@ class AppSettings {
         longPressAction: longPressAction ?? this.longPressAction,
         downloadPath: downloadPath ?? this.downloadPath,
         reduceAnimations: reduceAnimations ?? this.reduceAnimations,
+        gridColumns: gridColumns ?? this.gridColumns,
         language: language ?? this.language,
         onboardingComplete: onboardingComplete ?? this.onboardingComplete,
       );
@@ -116,10 +126,16 @@ class AppSettings {
         'longPressAction': longPressAction,
         'downloadPath': downloadPath,
         'reduceAnimations': reduceAnimations,
+        'gridColumns': gridColumns,
         'language': language,
         'onboardingComplete': onboardingComplete,
       };
 }
+
+/// 瀑布流列数取值范围。UI 循环按钮与设置反序列化共用这组边界。
+const int minGridColumns = 2;
+const int defaultGridColumns = 3;
+const int maxGridColumns = 6;
 
 class SettingsNotifier extends Notifier<AppSettings> {
   @override
@@ -195,6 +211,14 @@ class SettingsNotifier extends Notifier<AppSettings> {
 
   Future<void> setReduceAnimations(bool enabled) async {
     state = state.copyWith(reduceAnimations: enabled);
+    await _persist();
+  }
+
+  /// 设置瀑布流列数，clamp 到 [minColumns]–[maxColumns]。
+  Future<void> setGridColumns(int columns) async {
+    final clamped = columns.clamp(minGridColumns, maxGridColumns);
+    if (clamped == state.gridColumns) return;
+    state = state.copyWith(gridColumns: clamped);
     await _persist();
   }
 

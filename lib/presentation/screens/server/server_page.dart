@@ -2,6 +2,7 @@ import 'package:boorunova/data/repository/server/entity/server.dart';
 import 'package:boorunova/data/repository/server/user_server_repo.dart';
 import 'package:boorunova/presentation/l10n/app_strings.dart';
 import 'package:boorunova/presentation/screens/server/booru_site_template.dart';
+import 'package:boorunova/presentation/widgets/common/server_favicon.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -157,7 +158,7 @@ class _ServerTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListTile(
-      leading: _ServerFavicon(url: server.baseUrl),
+      leading: ServerFavicon(baseUrl: server.baseUrl, type: server.type),
       title: Text(server.name),
       subtitle: Text(server.baseUrl, maxLines: 1, overflow: TextOverflow.ellipsis),
       trailing: Row(
@@ -194,7 +195,7 @@ class _TemplateTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListTile(
-      leading: _ServerFavicon(url: template.baseUrl),
+      leading: ServerFavicon(baseUrl: template.baseUrl, type: template.type),
       title: Text(template.name),
       subtitle: Text(template.description ?? template.baseUrl,
           maxLines: 1, overflow: TextOverflow.ellipsis),
@@ -207,23 +208,5 @@ class _TemplateTile extends StatelessWidget {
       ),
       onTap: onTap,
     );
-  }
-}
-
-class _ServerFavicon extends StatelessWidget {
-  const _ServerFavicon({required this.url});
-  final String url;
-  @override
-  Widget build(BuildContext context) {
-    try {
-      final uri = Uri.parse(url);
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(4),
-        child: Image.network('${uri.scheme}://${uri.host}/favicon.ico', width: 24, height: 24,
-          errorBuilder: (_, __, ___) => const Icon(Icons.public, size: 20)),
-      );
-    } catch (_) {
-      return const Icon(Icons.public, size: 20);
-    }
   }
 }

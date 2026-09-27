@@ -18,8 +18,7 @@ class Sankaku extends Booru {
   String get baseUrl => 'https://chan.sankakucomplex.com';
 
   @override
-  BooruCapabilities get capabilities => const BooruCapabilities(        comments: true,
-      );
+  BooruCapabilities get capabilities => const BooruCapabilities();
 
   @override
   Map<String, String> get defaultHeaders => {

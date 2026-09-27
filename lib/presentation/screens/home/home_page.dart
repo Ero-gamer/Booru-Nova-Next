@@ -1,4 +1,3 @@
-import 'package:boorunova/boorus/engine/booru_capabilities.dart';
 import 'package:boorunova/boorus/engine/booru_repository.dart';
 import 'package:boorunova/boorus/engine/booru_type.dart';
 import 'package:boorunova/boorus/engine/registry.dart';
@@ -10,6 +9,7 @@ import 'package:boorunova/presentation/provider/booru/page_state.dart';
 import 'package:boorunova/presentation/screens/home/home_content.dart';
 import 'package:boorunova/presentation/screens/server/booru_site_template.dart';
 import 'package:boorunova/presentation/widgets/common/glass.dart';
+import 'package:boorunova/presentation/widgets/common/server_favicon.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -24,7 +24,6 @@ class HomePage extends ConsumerStatefulWidget {
 class _HomePageState extends ConsumerState<HomePage> {
   BooruServer? _activeServer;
   final Map<String, BooruRepository> _repoCache = {};
-  static final Set<String> _failedFavicons = {};
 
   @override
   void initState() {
@@ -37,7 +36,8 @@ class _HomePageState extends ConsumerState<HomePage> {
   void _onServersChanged(List<BooruServer> servers) {
     if (_activeServer != null) {
       // active 服务器被编辑（URL/凭据变化）→ 失效缓存并重建 repo 刷新
-      final updated = servers.where((s) => s.id == _activeServer!.id).firstOrNull;
+      final updated =
+          servers.where((s) => s.id == _activeServer!.id).firstOrNull;
       if (updated == null) {
         // active 服务器被删除：清空缓存并切到第一个可用站点
         _repoCache.remove(_activeServer!.id);
@@ -55,7 +55,8 @@ class _HomePageState extends ConsumerState<HomePage> {
     final settings = ref.read(settingsProvider);
     BooruServer? target;
     if (settings.defaultServerId != null) {
-      target = servers.where((s) => s.id == settings.defaultServerId).firstOrNull;
+      target =
+          servers.where((s) => s.id == settings.defaultServerId).firstOrNull;
     }
     if (ref.read(booruPageStateProvider.notifier).currentQuery.isEmpty) {
       _selectServer(target ?? servers.first);
@@ -78,7 +79,8 @@ class _HomePageState extends ConsumerState<HomePage> {
     final settings = ref.read(settingsProvider);
     BooruServer? target;
     if (settings.defaultServerId != null) {
-      target = servers.where((s) => s.id == settings.defaultServerId).firstOrNull;
+      target =
+          servers.where((s) => s.id == settings.defaultServerId).firstOrNull;
     }
     if (ref.read(booruPageStateProvider.notifier).currentQuery.isEmpty) {
       _selectServer(target ?? servers.first);
@@ -120,49 +122,82 @@ class _HomePageState extends ConsumerState<HomePage> {
     return _serverFavicon(baseUrl, _activeServer!.type, size: 24);
   }
 
-  Widget _serverIcon(BooruType type, {double size = 16}) {
-    final template = BooruSiteTemplate.findByType(type);
-    final fallback = Theme.of(context).colorScheme.onSurfaceVariant;
-    return CircleAvatar(
-      radius: size / 2 + 2,
-      backgroundColor: (template?.color ?? fallback).withOpacity(0.2),
-      child: Icon(template?.icon ?? Icons.dns_outlined,
-          color: template?.color ?? fallback, size: size),
-    );
-  }
-
-  bool _hasCapability(bool Function(BooruCapabilities) check) {
-    if (_activeServer == null) return false;
+  /// 图集入口是否可用：仅在真正实现了 fetchPools 的引擎上显示。
+  ///
+  /// 此前是 `bool Function(BooruCapabilities)` 的泛型检查层。删掉其余
+  /// 十个零消费的能力字段后，全项目只剩 pools 一个调用点，间接层
+  /// 反而让「这个引擎到底支持什么」更难一眼读完。
+  bool get _supportsPools {
+    final server = _activeServer;
+    if (server == null) return false;
     try {
-      final engine = ref.read(booruRegistryProvider).get(_activeServer!.type);
-      return engine != null && check(engine.booru.capabilities);
+      final engine = ref.read(booruRegistryProvider).get(server.type);
+      return engine != null && engine.booru.capabilities.pools;
     } catch (_) {
       return false;
     }
   }
 
-  Widget _serverFavicon(String baseUrl, BooruType type, {double size = 16}) {
-    try {
-      final clean = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
-      final faviconUrl = '$clean/favicon.ico';
-      if (_failedFavicons.contains(faviconUrl)) {
-        return _serverIcon(type, size: size);
-      }
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(4),
-        child: Image.network(
-          faviconUrl,
-          width: size,
-          height: size,
-          errorBuilder: (_, __, ___) {
-            _failedFavicons.add(faviconUrl);
-            return _serverIcon(type, size: size);
-          },
+  Widget _serverFavicon(String baseUrl, BooruType type, {double size = 16}) =>
+      ServerFavicon(baseUrl: baseUrl, type: type, size: size);
+
+  /// 在给定全局坐标处弹出站点切换菜单。
+  ///
+  /// 抽成独立方法，让搜索栏 favicon 和端抽屉头两处入口行为完全一致——
+  /// 此前端抽屉的入口只有一个空分支和一行 TODO 注释。
+  ///
+  /// 只有一个站点时给出明确提示并直达服务器管理页，而不是静默返回：
+  /// 长按/点击无反应会被用户当成手势失效。
+  void _openServerSwitcherAt(BuildContext menuContext, Offset topLeft) {
+    final servers = ref.read(userServerRepoProvider).getAll();
+    if (servers.length < 2) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(T.onlyOneServerHint),
+          action: SnackBarAction(
+            label: T.addServer,
+            onPressed: () => context.push('/servers'),
+          ),
         ),
       );
-    } catch (_) {
-      return _serverIcon(type, size: size);
+      return;
     }
+
+    final screenSize = MediaQuery.of(menuContext).size;
+    final items = <PopupMenuEntry<String>>[
+      for (final s in servers)
+        PopupMenuItem<String>(
+          value: s.id,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _serverFavicon(s.baseUrl, s.type, size: 18),
+              const SizedBox(width: 8),
+              Text(s.name, style: const TextStyle(fontSize: 13)),
+              if (s.id == _activeServer?.id) ...[
+                const SizedBox(width: 6),
+                Icon(
+                  Icons.check,
+                  color: Theme.of(context).colorScheme.primary,
+                  size: 14,
+                ),
+              ],
+            ],
+          ),
+        ),
+    ];
+
+    showMenu<String>(
+      context: menuContext,
+      position: RelativeRect.fromRect(
+        Rect.fromLTWH(topLeft.dx, topLeft.dy, 0, 0),
+        Rect.fromLTWH(0, 0, screenSize.width, screenSize.height),
+      ),
+      items: items,
+    ).then((id) {
+      if (id == null) return;
+      _selectServer(servers.firstWhere((s) => s.id == id));
+    });
   }
 
   Widget _faviconWidget() {
@@ -170,47 +205,21 @@ class _HomePageState extends ConsumerState<HomePage> {
     return Padding(
       padding: const EdgeInsets.only(left: 4),
       child: Builder(
-        builder: (ctx) => GestureDetector(
-          onLongPress: () {
-            final servers = ref.read(userServerRepoProvider).getAll();
-            if (servers.length < 2) return;
-            final renderBox = ctx.findRenderObject() as RenderBox;
-            final offset = renderBox.localToGlobal(Offset.zero);
-            final size = renderBox.size;
-            final items = servers.map((s) {
-              final isActive = s.id == _activeServer?.id;
-              return PopupMenuItem<String>(
-                value: s.id,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _serverFavicon(s.baseUrl, s.type, size: 18),
-                    const SizedBox(width: 8),
-                    Text(s.name, style: const TextStyle(fontSize: 13)),
-                    if (isActive) ...[
-                      const SizedBox(width: 6),
-                      Icon(Icons.check, color: Theme.of(context).colorScheme.primary, size: 14),
-                    ],
-                  ],
-                ),
+        builder: (ctx) => Tooltip(
+          message: T.switchServerTip,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(20),
+            onTap: () {
+              final box = ctx.findRenderObject() as RenderBox?;
+              if (box == null) return;
+              final origin = box.localToGlobal(Offset.zero);
+              _openServerSwitcherAt(
+                ctx,
+                Offset(origin.dx, origin.dy + box.size.height),
               );
-            }).toList();
-            final screenSize = MediaQuery.of(ctx).size;
-            showMenu<String>(
-              context: ctx,
-              position: RelativeRect.fromRect(
-                Rect.fromLTWH(offset.dx, offset.dy + size.height, 0, 0),
-                Rect.fromLTWH(0, 0, screenSize.width, screenSize.height),
-              ),
-              items: items,
-            ).then((id) {
-              if (id != null) {
-                final server = servers.firstWhere((s) => s.id == id);
-                _selectServer(server);
-              }
-            });
-          },
-          child: _buildFavicon(_activeServer!.baseUrl),
+            },
+            child: _buildFavicon(_activeServer!.baseUrl),
+          ),
         ),
       ),
     );
@@ -231,63 +240,82 @@ class _HomePageState extends ConsumerState<HomePage> {
         backgroundColor: Colors.transparent,
         child: GlassDrawer(
           child: ListView(
-          padding: EdgeInsets.zero,
-          children: [
-            DrawerHeader(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    Theme.of(context).colorScheme.primaryContainer,
-                    Theme.of(context).colorScheme.surface,
+            padding: EdgeInsets.zero,
+            children: [
+              DrawerHeader(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      Theme.of(context).colorScheme.primaryContainer,
+                      Theme.of(context).colorScheme.surface,
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    const Icon(Icons.image_search, size: 40),
+                    const SizedBox(height: 8),
+                    Text('BooruNova',
+                        style: Theme.of(context).textTheme.titleLarge),
                   ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
                 ),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  const Icon(Icons.image_search, size: 40),
-                  const SizedBox(height: 8),
-                  Text('BooruNova', style: Theme.of(context).textTheme.titleLarge),
-                ],
+              ListTile(
+                leading: const Icon(Icons.favorite_outline),
+                title: Text(T.favorites),
+                onTap: () {
+                  Navigator.pop(context);
+                  context.push('/favorites');
+                },
               ),
-            ),
-            ListTile(
-              leading: const Icon(Icons.favorite_outline),
-              title: Text(T.favorites),
-              onTap: () { Navigator.pop(context); context.push('/favorites'); },
-            ),
-            ListTile(
-              leading: const Icon(Icons.download_outlined),
-              title: Text(T.downloads),
-              onTap: () { Navigator.pop(context); context.push('/downloads'); },
-            ),
-            ListTile(
-              leading: const Icon(Icons.history),
-              title: Text(T.history),
-              onTap: () { Navigator.pop(context); context.push('/history'); },
-            ),
-            const Divider(),
-            ListTile(
-              leading: const Icon(Icons.dns_outlined),
-              title: Text(T.servers),
-              onTap: () { Navigator.pop(context); context.push('/servers'); },
-            ),
-            ListTile(
-              leading: const Icon(Icons.block_outlined),
-              title: Text(T.blacklist),
-              onTap: () { Navigator.pop(context); context.push('/blacklist'); },
-            ),
-            const Divider(),
-            ListTile(
-              leading: const Icon(Icons.settings_outlined),
-              title: Text(T.settings),
-              onTap: () { Navigator.pop(context); context.push('/settings'); },
-            ),
-          ],
-        ),
+              ListTile(
+                leading: const Icon(Icons.download_outlined),
+                title: Text(T.downloads),
+                onTap: () {
+                  Navigator.pop(context);
+                  context.push('/downloads');
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.history),
+                title: Text(T.history),
+                onTap: () {
+                  Navigator.pop(context);
+                  context.push('/history');
+                },
+              ),
+              const Divider(),
+              ListTile(
+                leading: const Icon(Icons.dns_outlined),
+                title: Text(T.servers),
+                onTap: () {
+                  Navigator.pop(context);
+                  context.push('/servers');
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.block_outlined),
+                title: Text(T.blacklist),
+                onTap: () {
+                  Navigator.pop(context);
+                  context.push('/blacklist');
+                },
+              ),
+              const Divider(),
+              ListTile(
+                leading: const Icon(Icons.settings_outlined),
+                title: Text(T.settings),
+                onTap: () {
+                  Navigator.pop(context);
+                  context.push('/settings');
+                },
+              ),
+            ],
+          ),
         ),
       ),
       drawerEdgeDragWidth: 40,
@@ -297,71 +325,84 @@ class _HomePageState extends ConsumerState<HomePage> {
         child: GlassDrawer(
           right: true,
           child: ListView(
-          padding: EdgeInsets.zero,
-          children: [
-            DrawerHeader(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    Theme.of(context).colorScheme.primaryContainer,
-                    Theme.of(context).colorScheme.surface,
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
+            padding: EdgeInsets.zero,
+            children: [
+              DrawerHeader(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      Theme.of(context).colorScheme.primaryContainer,
+                      Theme.of(context).colorScheme.surface,
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
                 ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  Builder(
-                    builder: (ctx) => GestureDetector(
-                      onLongPress: () {
-                        Navigator.pop(ctx);
-                        // trigger server switch popup
-                      },
-                      child: Row(
-                        children: [
-                          _buildFavicon(_activeServer?.baseUrl ?? ''),
-                          const SizedBox(width: 8),
-                          Text(
-                            _activeServer?.name ?? 'BooruNova',
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                        ],
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    // 点击即切换站点，与搜索栏 favicon 共用同一套切换菜单。
+                    // 此前这里只有 Navigator.pop + 一行 TODO 注释，按下等于关抽屉。
+                    Builder(
+                      builder: (ctx) => InkWell(
+                        onTap: () {
+                          Navigator.pop(ctx);
+                          // 抽屉已关闭，原锚点元素随之卸载；用 overlay 重新定位。
+                          final overlay = Overlay.of(context);
+                          final box = context.findRenderObject() as RenderBox?;
+                          if (box == null) return;
+                          _openServerSwitcherAt(
+                            overlay.context,
+                            box.localToGlobal(const Offset(16, 88)),
+                          );
+                        },
+                        child: Row(
+                          children: [
+                            _buildFavicon(_activeServer?.baseUrl ?? ''),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                _activeServer?.name ?? 'BooruNova',
+                                style: Theme.of(context).textTheme.titleMedium,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Icon(
+                              Icons.swap_horiz,
+                              size: 18,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            ListTile(
-              leading: const Icon(Icons.explore_outlined),
-              title: Text(T.explore),
-              onTap: () { Navigator.pop(context); context.push('/explore'); },
-            ),
-            // 图集仅在实际实现了 fetchPools 的引擎（danbooru/e621/moebooru）显示
-            if (_activeServer != null && _hasCapability((c) => c.pools))
               ListTile(
-                leading: const Icon(Icons.collections_outlined),
-                title: Text(T.pools),
-                onTap: () { Navigator.pop(context); context.push('/pools'); },
+                leading: const Icon(Icons.explore_outlined),
+                title: Text(T.explore),
+                onTap: () {
+                  Navigator.pop(context);
+                  context.push('/explore');
+                },
               ),
-            const Divider(),
-            if (_activeServer != null && _hasCapability((c) => c.forums))
-              ListTile(
-                leading: const Icon(Icons.forum_outlined),
-                title: Text(T.forum),
-                onTap: () { Navigator.pop(context); context.push('/forum'); },
-              ),
-            if (_activeServer != null && _hasCapability((c) => c.artistPages))
-              ListTile(
-                leading: const Icon(Icons.palette_outlined),
-                title: Text(T.artists),
-                onTap: () { Navigator.pop(context); context.push('/artists'); },
-              ),
-          ],
-        ),
+              // 图集仅在实际实现了 fetchPools 的引擎（danbooru/e621/moebooru）显示
+              if (_supportsPools)
+                ListTile(
+                  leading: const Icon(Icons.collections_outlined),
+                  title: Text(T.pools),
+                  onTap: () {
+                    Navigator.pop(context);
+                    context.push('/pools');
+                  },
+                ),
+            ],
+          ),
         ),
       ),
       appBar: AppBar(
@@ -381,31 +422,47 @@ class _HomePageState extends ConsumerState<HomePage> {
           },
           child: servers.isEmpty
               ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.image_search, size: 64,
-                      color: Theme.of(context).colorScheme.primary.withOpacity(0.3)),
-                  const SizedBox(height: 16),
-                  Text(T.noPostsYet,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5))),
-                  const SizedBox(height: 8),
-                  Text(T.addBooruServer,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.3))),
-                  const SizedBox(height: 24),
-                  FilledButton.icon(
-                    onPressed: () => context.push('/servers'),
-                    icon: const Icon(Icons.add),
-                    label: Text(T.addServer),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.image_search,
+                          size: 64,
+                          color: Theme.of(context)
+                              .colorScheme
+                              .primary
+                              .withOpacity(0.3)),
+                      const SizedBox(height: 16),
+                      Text(T.noPostsYet,
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleMedium
+                              ?.copyWith(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurface
+                                      .withOpacity(0.5))),
+                      const SizedBox(height: 8),
+                      Text(T.addBooruServer,
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodyMedium
+                              ?.copyWith(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurface
+                                      .withOpacity(0.3))),
+                      const SizedBox(height: 24),
+                      FilledButton.icon(
+                        onPressed: () => context.push('/servers'),
+                        icon: const Icon(Icons.add),
+                        label: Text(T.addServer),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            )
-          : HomeContent(favicon: _faviconWidget()),
+                )
+              : HomeContent(favicon: _faviconWidget()),
         ),
       ),
-      );
+    );
   }
 }

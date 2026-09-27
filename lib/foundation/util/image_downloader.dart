@@ -11,6 +11,7 @@ class ImageDownloader {
   static Future<DownloadResult> downloadImage(
     String url, {
     String? postId,
+    String? namespace,
     int? width,
     int? height,
     OnProgress? onProgress,
@@ -22,10 +23,12 @@ class ImageDownloader {
         return const DownloadResult(success: false, error: 'No file extension');
       }
 
-      final path = '${dir.path}/${uniqueFileName(url, postId: postId)}';
+      final path =
+          '${dir.path}/${uniqueFileName(url, postId: postId, namespace: namespace)}';
       final dio = DioFactory.createDownload();
       await dio.download(
-        url, path,
+        url,
+        path,
         onReceiveProgress: (received, total) {
           if (total > 0 && onProgress != null) {
             onProgress(received / total);
@@ -44,6 +47,8 @@ class ImageDownloader {
           downloadedAt: DateTime.now(),
           width: width,
           height: height,
+          // namespace 就是 serverId：写进记录，删除时才能按站点精确定位。
+          serverId: namespace ?? '',
         ));
       }
 

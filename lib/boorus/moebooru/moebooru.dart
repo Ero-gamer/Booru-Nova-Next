@@ -19,8 +19,7 @@ class Moebooru extends Booru {
 
   @override
   BooruCapabilities get capabilities => const BooruCapabilities(
-        pools: true,        comments: true,
-        tagTranslation: true,
+        pools: true,
       );
 
   @override

@@ -17,15 +17,18 @@ class UserHostsRepo {
   List<HostEntry> getAll() {
     final raw = _box.get(_key) as String?;
     final list = decodeJsonList(raw);
-    return list.map((e) {
-      final m = asStringMap(e);
-      if (m == null) return null;
-      try {
-        return HostEntry.fromJson(m);
-      } catch (_) {
-        return null;
-      }
-    }).whereType<HostEntry>().toList();
+    return list
+        .map((e) {
+          final m = asStringMap(e);
+          if (m == null) return null;
+          try {
+            return HostEntry.fromJson(m);
+          } catch (_) {
+            return null;
+          }
+        })
+        .whereType<HostEntry>()
+        .toList();
   }
 
   HostEntry? getByDomain(String domain) {
@@ -34,15 +37,25 @@ class UserHostsRepo {
   }
 
   HostEntry? match(String urlDomain) {
-    final lower = urlDomain.toLowerCase();
-    return getAll()
-        .where((h) => lower.contains(h.domain.toLowerCase()))
-        .firstOrNull;
+    final lower = _normalizeDomain(urlDomain);
+    return getAll().where((h) {
+      final domain = _normalizeDomain(h.domain);
+      return lower == domain || lower.endsWith('.$domain');
+    }).firstOrNull;
+  }
+
+  static String _normalizeDomain(String value) {
+    var domain = value.trim().toLowerCase();
+    while (domain.endsWith('.')) {
+      domain = domain.substring(0, domain.length - 1);
+    }
+    return domain;
   }
 
   Future<void> add(HostEntry entry) async {
     final all = getAll();
-    all.removeWhere((h) => h.domain.toLowerCase() == entry.domain.toLowerCase());
+    all.removeWhere(
+        (h) => h.domain.toLowerCase() == entry.domain.toLowerCase());
     all.add(entry);
     await _persist(all);
   }
@@ -66,7 +79,6 @@ class UserHostsRepo {
   }
 
   Future<void> _persist(List<HostEntry> entries) async {
-    await _box.put(
-        _key, jsonEncode(entries.map((e) => e.toJson()).toList()));
+    await _box.put(_key, jsonEncode(entries.map((e) => e.toJson()).toList()));
   }
 }

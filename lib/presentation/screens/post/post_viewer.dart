@@ -1,7 +1,6 @@
-﻿import 'dart:async';
+import 'dart:async';
 
 import 'package:boorunova/boorus/engine/booru_repository.dart';
-import 'package:boorunova/data/repository/booru/entity/post.dart';
 import 'package:boorunova/data/repository/favorites/user_favorite_repo.dart';
 import 'package:boorunova/data/repository/history/user_history_repo.dart';
 import 'package:boorunova/foundation/util/image_downloader.dart';
@@ -41,6 +40,11 @@ class _PostViewerState extends ConsumerState<PostViewer>
 
   // 跟手下滑 dismiss 状态
   final _dragOffset = ValueNotifier<double>(0);
+
+  // 缩放控制器。doubleTapAction == 'zoom' 依赖它做双击放大/还原；
+  // 此前 InteractiveViewer 没有 controller，双击缩放根本无法实现。
+  final _zoomController = TransformationController();
+  bool _zoomed = false;
   late final AnimationController _springController;
   Animation<double>? _springAnim;
   VoidCallback? _springListener;
@@ -69,6 +73,7 @@ class _PostViewerState extends ConsumerState<PostViewer>
     _slideshowTimer?.cancel();
     _springController.dispose();
     _dragOffset.dispose();
+    _zoomController.dispose();
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
@@ -108,7 +113,7 @@ class _PostViewerState extends ConsumerState<PostViewer>
     final post = widget.posts[_currentIndex];
     final favRepo = ref.watch(userFavoritesRepoProvider);
     final isFav = favRepo.isFavorite(post.id, serverId: post.serverId);
-    final isVideo = _isVideoUrl(post.originalUrl) || _isVideoUrl(post.sampleUrl);
+    final isVideo = isVideoPost(post);
     // 翻页方向：true=横向翻页（纵轴留给下滑关闭），false=纵向翻页（横轴留给侧滑关闭）
     final horizontalPages = ref.watch(settingsProvider).viewerSwipeMode;
 
@@ -126,87 +131,75 @@ class _PostViewerState extends ConsumerState<PostViewer>
             borderRadius: BorderRadius.zero,
             tint: Colors.black,
             child: AppBar(
-            backgroundColor: Colors.transparent,
-            foregroundColor: Colors.white,
-            elevation: 0,
-        title: Text(
-          '${_currentIndex + 1} / ${widget.posts.length}',
-          style: const TextStyle(fontSize: 14),
-        ),
-        actions: [
-          if (widget.posts.length > 1 && !isVideo)
-            IconButton(
-              icon: Icon(_slideshowPlaying ? Icons.pause_circle_filled : Icons.auto_awesome),
-              tooltip: _slideshowPlaying ? T.stopSlideshow : T.autoSlideshow,
-              onPressed: _toggleSlideshow,
-            ),
-          IconButton(
-            icon: const Icon(Icons.share_outlined),
-            tooltip: T.share,
-            onPressed: () => _share(post),
-          ),
-          IconButton(
-            icon: const Icon(Icons.info_outline),
-            tooltip: T.postDetails,
-            onPressed: () => _showDetails(context, post),
-          ),
-          IconButton(
-            icon: _saving
-                ? _DownloadProgressIcon(post: post)
-                : const Icon(Icons.download_outlined),
-            tooltip: T.downloads,
-            onPressed: _saving ? null : () => _download(post),
-          ),
-          IconButton(
-            icon: Icon(
-              isFav ? Icons.favorite : Icons.favorite_border,
-              color: isFav ? Colors.red : Colors.white,
-            ),
-            tooltip: T.favorites,
-            onPressed: () async {
-              final repo = ref.read(userFavoritesRepoProvider);
-              await repo.toggle(BooruPost(
-                id: post.id,
-                serverId: post.serverId,
-                thumbnailUrl: post.thumbnailUrl,
-                sampleUrl: post.sampleUrl,
-                originalUrl: post.originalUrl,
-                tags: post.tags,
-                tagGeneral: post.tagGeneral,
-                tagArtist: post.tagArtist,
-                tagCharacter: post.tagCharacter,
-                tagCopyright: post.tagCopyright,
-                tagMeta: post.tagMeta,
-                aspectRatio: post.aspectRatio,
-                width: post.width,
-                height: post.height,
-                rating: post.rating,
-                score: post.score,
-                source: post.source,
-                postUrl: post.postUrl,
-              ));
-              ref.invalidate(userFavoritesRepoProvider);
-            },
-          ),
-        ],
+              backgroundColor: Colors.transparent,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              title: Text(
+                '${_currentIndex + 1} / ${widget.posts.length}',
+                style: const TextStyle(fontSize: 14),
+              ),
+              actions: [
+                if (widget.posts.length > 1 && !isVideo)
+                  IconButton(
+                    icon: Icon(_slideshowPlaying
+                        ? Icons.pause_circle_filled
+                        : Icons.auto_awesome),
+                    tooltip:
+                        _slideshowPlaying ? T.stopSlideshow : T.autoSlideshow,
+                    onPressed: _toggleSlideshow,
+                  ),
+                IconButton(
+                  icon: const Icon(Icons.share_outlined),
+                  tooltip: T.share,
+                  onPressed: () => _share(post),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.info_outline),
+                  tooltip: T.postDetails,
+                  onPressed: () => _showDetails(context, post),
+                ),
+                IconButton(
+                  icon: _saving
+                      ? _DownloadProgressIcon(post: post)
+                      : const Icon(Icons.download_outlined),
+                  tooltip: T.downloads,
+                  onPressed: _saving ? null : () => _download(post),
+                ),
+                IconButton(
+                  icon: Icon(
+                    isFav ? Icons.favorite : Icons.favorite_border,
+                    color: isFav ? Colors.red : Colors.white,
+                  ),
+                  tooltip: T.favorites,
+                  // 按钮态不弹提示：图标翻转本身就是反馈，
+                  // 长按/双击才需要 snackbar 确认（手势没有可见的视觉变化）
+                  onPressed: () => _toggleFavorite(post, notify: false),
+                ),
+              ],
             ),
           ),
         ),
       ),
+      // 手势接线：四个设置项此前只有 tapAction / swipeDownAction 生效，
+      // doubleTapAction 与 longPressAction 声明了但没有任何消费点。
+      //
+      // 长按此前被 _toggleSlideshow 无条件抢占，用户把长按设成「收藏」
+      // 实际行为却是切幻灯片 —— 语义直接冲突。这里改为按设置分发，
+      // 幻灯片移交给 AppBar 上的显式按钮（本来就有）。
       body: GestureDetector(
-        onLongPress: _toggleSlideshow,
+        onLongPress: () => _onLongPress(post),
+        onDoubleTap: () => _onDoubleTap(post),
         onVerticalDragStart:
             horizontalPages ? (_) => _springController.stop() : null,
         onVerticalDragUpdate:
             horizontalPages ? (d) => _dragOffset.value += d.delta.dy : null,
-        onVerticalDragEnd:
-            horizontalPages ? (d) => _onDragEnd(d, post, true) : null,
+        onVerticalDragEnd: horizontalPages ? (d) => _onDragEnd(d, post) : null,
         onHorizontalDragStart:
             horizontalPages ? null : (_) => _springController.stop(),
         onHorizontalDragUpdate:
             horizontalPages ? null : (d) => _dragOffset.value += d.delta.dx,
         onHorizontalDragEnd:
-            horizontalPages ? null : (d) => _onDragEnd(d, post, false),
+            horizontalPages ? null : (d) => _onDragEnd(d, post),
         child: ValueListenableBuilder<double>(
           valueListenable: _dragOffset,
           builder: (context, offset, child) {
@@ -214,8 +207,7 @@ class _PostViewerState extends ConsumerState<PostViewer>
             return Container(
               color: Colors.black.withOpacity(1.0 - 0.9 * progress),
               child: Transform.translate(
-                offset:
-                    horizontalPages ? Offset(0, offset) : Offset(offset, 0),
+                offset: horizontalPages ? Offset(0, offset) : Offset(offset, 0),
                 child: Transform.scale(
                   scale: 1.0 - 0.12 * progress,
                   child: child,
@@ -224,78 +216,141 @@ class _PostViewerState extends ConsumerState<PostViewer>
             );
           },
           child: PageView.builder(
-          scrollDirection: ref.watch(settingsProvider).viewerSwipeMode ? Axis.horizontal : Axis.vertical,
-          controller: _pageController,
-          itemCount: widget.posts.length,
-          onPageChanged: (index) {
-            setState(() => _currentIndex = index);
-            _trackHistory(widget.posts[index]);
-          },
-          itemBuilder: (context, index) {
-            final p = widget.posts[index];
-            final url = p.sampleUrl.isNotEmpty ? p.sampleUrl : p.originalUrl;
-            final isVideo = _isVideoUrl(url);
+            scrollDirection: ref.watch(settingsProvider).viewerSwipeMode
+                ? Axis.horizontal
+                : Axis.vertical,
+            controller: _pageController,
+            itemCount: widget.posts.length,
+            onPageChanged: (index) {
+              setState(() => _currentIndex = index);
+              _resetZoom();
+              _trackHistory(widget.posts[index]);
+            },
+            itemBuilder: (context, index) {
+              final p = widget.posts[index];
+              final url = mediaUrlOf(p);
+              final isVideo = isVideoPost(p);
 
-            if (isVideo) {
-              return Center(
-                child: Hero(
-                  tag: 'post_${p.serverId}_${p.id}',
-                  child: VideoViewer(url: url),
-                ),
-              );
-            }
+              if (isVideo) {
+                return Center(
+                  child: Hero(
+                    tag: 'post_${p.serverId}_${p.id}',
+                    child: VideoViewer(url: url),
+                  ),
+                );
+              }
 
-            return GestureDetector(
-              onTap: () {
-                if (ref.read(settingsProvider).tapAction == 'detail') {
-                  _showDetails(context, p);
-                }
-              },
-              child: InteractiveViewer(
-                minScale: 1.0,
-                maxScale: 5.0,
-              child: Center(
-                child: Hero(
-                  tag: 'post_${p.serverId}_${p.id}',
-                  child: ExtendedImage.network(
-                          url,
-                          fit: BoxFit.contain,
-                          cache: true,
-                          loadStateChanged: (state) {
-                            if (state.extendedImageLoadState ==
-                                LoadState.loading) {
-                              return const Center(
-                                child: CircularProgressIndicator(
-                                    color: Colors.white),
-                              );
-                            }
-                            if (state.extendedImageLoadState ==
-                                LoadState.failed) {
-                              return const Center(
-                                child: Icon(Icons.broken_image,
-                                    color: Colors.white54, size: 48),
-                              );
-                            }
-                            return state.completedWidget;
-                          },
-                        ),
+              return GestureDetector(
+                onTap: () {
+                  if (ref.read(settingsProvider).tapAction == 'detail') {
+                    _showDetails(context, p);
+                  }
+                },
+                child: InteractiveViewer(
+                  transformationController: _zoomController,
+                  minScale: 1.0,
+                  maxScale: 5.0,
+                  child: Center(
+                    child: Hero(
+                      tag: 'post_${p.serverId}_${p.id}',
+                      child: ExtendedImage.network(
+                        url,
+                        fit: BoxFit.contain,
+                        cache: true,
+                        loadStateChanged: (state) {
+                          if (state.extendedImageLoadState ==
+                              LoadState.loading) {
+                            return const Center(
+                              child: CircularProgressIndicator(
+                                  color: Colors.white),
+                            );
+                          }
+                          if (state.extendedImageLoadState ==
+                              LoadState.failed) {
+                            return const Center(
+                              child: Icon(Icons.broken_image,
+                                  color: Colors.white54, size: 48),
+                            );
+                          }
+                          return state.completedWidget;
+                        },
+                      ),
                     ),
                   ),
                 ),
               );
-          },
+            },
           ),
         ),
       ),
     );
   }
 
-  void _onDragEnd(DragEndDetails details, PostSummary post, bool horizontalPages) {
+  /// 长按：按 longPressAction 设置分发。
+  /// 幻灯片不再占用长按，改由 AppBar 按钮触发。
+  void _onLongPress(PostSummary post) {
+    switch (ref.read(settingsProvider).longPressAction) {
+      case 'fav':
+        _toggleFavorite(post);
+      case 'none':
+        break;
+      default:
+        // 未知值退化为无操作，不做猜测性行为
+        break;
+    }
+  }
+
+  /// 双击：按 doubleTapAction 设置分发（缩放 / 收藏）。
+  void _onDoubleTap(PostSummary post) {
+    switch (ref.read(settingsProvider).doubleTapAction) {
+      case 'zoom':
+        _toggleZoom();
+      case 'fav':
+        _toggleFavorite(post);
+      default:
+        break;
+    }
+  }
+
+  /// 双击缩放：在 1x 与 2.5x 之间切换，带动画。
+  void _toggleZoom() {
+    final target =
+        _zoomed ? Matrix4.identity() : (Matrix4.identity()..scale(2.5));
+    _zoomed = !_zoomed;
+    _zoomController.value = target;
+  }
+
+  /// 翻页后复位缩放：否则新一页会继承上一页的放大倍率。
+  void _resetZoom() {
+    if (!_zoomed && _zoomController.value == Matrix4.identity()) return;
+    _zoomed = false;
+    _zoomController.value = Matrix4.identity();
+  }
+
+  /// 切换收藏。[notify] 为 true 时弹 snackbar 确认——手势触发时用，
+  /// 因为手势没有像按钮图标那样明显的视觉反馈。
+  Future<void> _toggleFavorite(PostSummary post, {bool notify = true}) async {
+    final repo = ref.read(userFavoritesRepoProvider);
+    await repo.toggle(post.toPost());
+    ref.invalidate(userFavoritesRepoProvider);
+    if (!notify || !mounted) return;
+    final nowFav = repo.isFavorite(post.id, serverId: post.serverId);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content:
+            Text(nowFav ? T.addedToFavoritesShort : T.removedFromFavorites),
+        duration: const Duration(seconds: 1),
+      ),
+    );
+  }
+
+  void _onDragEnd(DragEndDetails details, PostSummary post) {
     final offset = _dragOffset.value;
     final velocity = details.primaryVelocity ?? 0;
-    // 横向翻页模式下快速下甩且下滑动作为详情：回弹并打开详情
-    if (horizontalPages &&
-        velocity > 900 &&
+    // 下滑动作按设置分发。纵向翻页模式下纵轴被 PageView 占用，
+    // 此时该设置不生效——这是翻页轴的固有限制，不是 bug，
+    // 但必须让用户知道，而不是静默忽略。
+    if (velocity > 900 &&
         offset.abs() < _dismissThreshold &&
         ref.read(settingsProvider).swipeDownAction == 'detail') {
       _springBack();
@@ -322,27 +377,19 @@ class _PostViewerState extends ConsumerState<PostViewer>
     _springController.forward(from: 0);
   }
 
-  bool _isVideoUrl(String url) {
-    final lower = url.toLowerCase();
-    return lower.endsWith('.mp4') ||
-        lower.endsWith('.webm') ||
-        lower.contains('/video/') ||
-        lower.contains('/sample/') && lower.contains('.mp4');
-  }
-
   void _share(PostSummary post) {
-    final postUrl = post.postUrl ?? post.originalUrl;
+    final postUrl = permalinkOf(post);
     if (postUrl.isEmpty) return;
     Share.share(postUrl);
   }
 
   Future<void> _download(PostSummary post) async {
     final settings = ref.read(settingsProvider);
-    final quality = settings.downloadQuality;
-    // 进度图标按真实下载 URL 查询，与这里保持一致（quality==sample 用 sampleUrl）。
-    final url = quality == 'sample' && post.sampleUrl.isNotEmpty
-        ? post.sampleUrl
-        : (post.originalUrl.isNotEmpty ? post.originalUrl : post.sampleUrl);
+    // 进度图标查的是同一个 downloadUrlOf，两者天然对齐。
+    final url = downloadUrlOf(
+      post,
+      preferSample: settings.downloadQuality == 'sample',
+    );
     if (url.isEmpty) return;
 
     final progressNotifier = ref.read(downloadProgressProvider.notifier);
@@ -352,6 +399,7 @@ class _PostViewerState extends ConsumerState<PostViewer>
     final result = await ImageDownloader.downloadImage(
       url,
       postId: post.id,
+      namespace: post.serverId,
       width: post.width,
       height: post.height,
       onProgress: (p) => progressNotifier.update(url, p),
@@ -387,13 +435,21 @@ class _DownloadProgressIcon extends ConsumerWidget {
   final PostSummary post;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // 与 _download 使用同一 URL 选择逻辑，保证 quality==sample 时进度也能命中。
     final settings = ref.watch(settingsProvider);
-    final url = settings.downloadQuality == 'sample' &&
-            post.sampleUrl.isNotEmpty
-        ? post.sampleUrl
-        : (post.originalUrl.isNotEmpty ? post.originalUrl : post.sampleUrl);
-    final p = ref.watch(downloadProgressProvider).where((d) => d.url == url).firstOrNull;
-    return SizedBox(width: 20, height: 20, child: CircularProgressIndicator(value: (p?.progress ?? 0) > 0 ? p!.progress : null, strokeWidth: 2, color: Colors.white));
+    final url = downloadUrlOf(
+      post,
+      preferSample: settings.downloadQuality == 'sample',
+    );
+    final p = ref
+        .watch(downloadProgressProvider)
+        .where((d) => d.url == url)
+        .firstOrNull;
+    return SizedBox(
+        width: 20,
+        height: 20,
+        child: CircularProgressIndicator(
+            value: (p?.progress ?? 0) > 0 ? p!.progress : null,
+            strokeWidth: 2,
+            color: Colors.white));
   }
 }

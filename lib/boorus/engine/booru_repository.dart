@@ -1,3 +1,5 @@
+import 'package:boorunova/data/repository/booru/entity/post.dart';
+
 class BooruQuery {
   const BooruQuery({
     required this.tags,
@@ -96,6 +98,97 @@ class PostSummary {
   final List<String> tagCharacter;
   final List<String> tagCopyright;
   final List<String> tagMeta;
+
+  /// 转为可持久化的 [BooruPost]（收藏仓库的数据类型）。
+  ///
+  /// 此前四个调用点（首页收藏、批量收藏、查看器收藏、详情页收藏）各自
+  /// 手写一份 17 字段的字面量拷贝。字段一多就必然漏传，而漏传是静默的
+  /// ——收藏成功但数据残缺，没有任何报错。
+  BooruPost toPost() => BooruPost(
+        id: id,
+        serverId: serverId,
+        thumbnailUrl: thumbnailUrl,
+        sampleUrl: sampleUrl,
+        originalUrl: originalUrl,
+        tags: tags,
+        tagGeneral: tagGeneral,
+        tagArtist: tagArtist,
+        tagCharacter: tagCharacter,
+        tagCopyright: tagCopyright,
+        tagMeta: tagMeta,
+        aspectRatio: aspectRatio,
+        width: width,
+        height: height,
+        rating: rating,
+        score: score,
+        source: source,
+        postUrl: postUrl,
+      );
+}
+
+/// 展示用媒体 URL：优先 sample，退回 original，最后 thumbnail。
+/// 单个下载、批量下载与详情页预览共用同一条优先级，避免三处各选各的。
+String mediaUrlOf(PostSummary post) {
+  if (post.sampleUrl.isNotEmpty) return post.sampleUrl;
+  if (post.originalUrl.isNotEmpty) return post.originalUrl;
+  return post.thumbnailUrl;
+}
+
+/// 跨站点唯一键：`serverId + postId`。
+///
+/// postId 只在单个站点内唯一。此前批量选择直接拿裸 postId 当 key，
+/// 切换站点时选择状态不会被清空（clear 只在下拉刷新和手动清空时触发），
+/// 于是 A 站的 42 号选择会误命中 B 站的 42 号——批量下载/收藏/分享
+/// 把它一起带上。这正是收藏、下载、历史三处早已用 serverId 隔离、
+/// 唯独批量选择漏掉的那一维。
+String postKeyOf(PostSummary post) => '${post.serverId}/${post.id}';
+
+/// 下载 URL 选择。[preferSample] 为真且 sample 存在时用 sample，
+/// 否则走 [mediaUrlOf] 的优先级。
+///
+/// 单图下载、下载进度图标查询、批量下载此前各写一份三元表达式，
+/// 其中一处还靠注释「与这里保持一致」来同步——改一处忘另一处就静默
+/// 分叉，用户设了 sample 却被按原图下载。
+String downloadUrlOf(PostSummary post, {bool preferSample = false}) {
+  if (preferSample && post.sampleUrl.isNotEmpty) return post.sampleUrl;
+  return mediaUrlOf(post);
+}
+
+/// 站点帖子页链接：分享、跳转详情、打开浏览器共用。
+///
+/// 此前这四处各写一遍 `post.postUrl ?? post.originalUrl`。解析器统一
+/// 以 null 表示「站点没给链接」，但这里仍做 isNotEmpty 兜底——历史记录
+/// 来自 JSON 反序列化，任何一环给出空串都不该把空地址分享出去。
+String permalinkOf(PostSummary post) {
+  final url = post.postUrl;
+  if (url != null && url.isNotEmpty) return url;
+  return post.originalUrl;
+}
+
+/// 视频判定。取 original / sample 两者中任一命中即算视频：
+/// 有些站点 original 是 mp4 而 sample 是图，反之亦然。
+///
+/// 此前存在三套实现且口径不一：瀑布流只看 original、详情页只看
+/// sample 优先的 mediaUrl —— 同一个帖子在列表显示视频角标、点进去却
+/// 按图片渲染。这里取并集，是三者中最宽松也最不易误判的口径。
+bool isVideoPost(PostSummary post) =>
+    _isVideoUrl(post.originalUrl) || _isVideoUrl(post.sampleUrl);
+
+/// 单个 URL 的视频判定。
+///
+/// 扩展名判定之外额外覆盖两类站点惯例：路径含 `/video/` 的直链，
+/// 以及 sample 目录下的 mp4（部分站点把视频抽帧图放在同目录）。
+bool isVideoUrl(String url) => _isVideoUrl(url);
+
+bool _isVideoUrl(String url) {
+  if (url.isEmpty) return false;
+  // 先剥掉 query / fragment：图站普遍用 `?token=` 之类做防盗链，
+  // 不剥掉的话 `clip.mp4?token=1` 的 endsWith 判定必然落空。
+  final bare = url.split('?').first.split('#').first.toLowerCase();
+  return bare.endsWith('.mp4') ||
+      bare.endsWith('.webm') ||
+      bare.contains('/video/') ||
+      (bare.contains('/sample/') && bare.contains('.mp4'));
 }
 
 abstract class BooruRepository {
@@ -105,5 +198,6 @@ abstract class BooruRepository {
   Future<BooruPageResult> searchPosts(BooruQuery query);
   Future<List<String>> suggestTags(String query, {int limit = 10});
   Future<List<String>> fetchTrendingTags({int limit = 20}) async => [];
-  Future<List<BooruPool>> fetchPools({int page = 1, int limit = 20}) async => [];
+  Future<List<BooruPool>> fetchPools({int page = 1, int limit = 20}) async =>
+      [];
 }

@@ -50,8 +50,9 @@ class T {
   static String get tryDifferentSearch =>
       _t('换一个关键词试试，或清除筛选条件', 'Try another keyword or clear the filters');
   static String get engineNotAvailable => _t('引擎不可用：', 'Engine unavailable: ');
-  static String get exitSelection => _t('退出选择', 'Exit selection');
-  static String get switchServer => _t('切换服务器', 'Switch server');
+  static String get switchServerTip => _t('点击切换站点', 'Tap to switch site');
+  static String get onlyOneServerHint =>
+      _t('只有一个站点，先去添加更多站点吧', 'Only one site so far. Add more to switch between them.');
   static String get favorites => _t('收藏', 'Favorites');
   static String get history => _t('历史', 'History');
   static String get settings => _t('设置', 'Settings');
@@ -77,11 +78,7 @@ class T {
   static String get blacklistSub => _t('屏蔽标签管理', 'Manage blocked tags');
   static String get explore => _t('探索', 'Explore');
   static String get pools => _t('图集', 'Pools');
-  static String get forum => _t('论坛', 'Forum');
-  static String get artists => _t('艺术家', 'Artists');
-  static String get noForumContent => _t('暂无论坛内容', 'No forum content yet');
-  static String get artistsNotImplemented =>
-      _t('暂未实现艺术家浏览', 'Artist browsing is not implemented yet');
+
 
   // Search Bar
   static String get sortRelevance => _t('相关度', 'Relevance');
@@ -123,6 +120,9 @@ class T {
   static String get clearHistoryContent =>
       _t('这将删除所有浏览记录。', 'This will delete all browsing history.');
   static String get noHistory => _t('暂无浏览历史', 'No browsing history');
+  static String get historyHint =>
+      _t('看过的帖子会出现在这里，点一下就能回到那张图', 'Posts you have viewed show up here. Tap one to go back to it.');
+  static String get browseNow => _t('去逛逛', 'Browse now');
   static String get justNow => _t('刚刚', 'just now');
   static String get minutesAgo => _t('分钟前', 'm ago');
   static String get hoursAgo => _t('小时前', 'h ago');
@@ -136,6 +136,13 @@ class T {
   static String get clearDownloadHistoryContent => _t(
       '删除下载历史记录，已下载的图片仍保留在相册中。',
       'Deletes the download log. Images already saved stay in your gallery.');
+  static String get downloadsHint =>
+      _t('下载过的图会列在这里，点一下可以预览', 'Downloaded images show up here. Tap one to preview.');
+  static String get openFile => _t('用其他应用打开', 'Open with another app');
+  static String get fileUnavailable =>
+      _t('文件已不存在，可能被系统清理了', 'File is gone. It may have been cleaned up by the system.');
+  static String get removedFromDownloads =>
+      _t('已从下载记录中移除', 'Removed from downloads');
   static String get noDownloadsYet => _t('还没有下载', 'No downloads yet');
   static String get tapDownloadToSave =>
       _t('在查看器中点击下载按钮保存图片', 'Tap the download button in the viewer to save images');
@@ -203,6 +210,10 @@ class T {
   static String get swipeDownAction => _t('下滑动作', 'Swipe down');
   static String get tapAction => _t('单击图片', 'Single tap');
   static String get doubleTapAction => _t('双击图片', 'Double tap');
+  static String get addedToFavoritesShort => _t('已收藏', 'Added to favorites');
+  static String get removedFromFavorites => _t('已取消收藏', 'Removed from favorites');
+  static String get swipeDownNeedsHorizontal =>
+      _t('仅在「横向翻页」模式下生效', 'Only applies in horizontal paging mode');
   static String get longPressAction => _t('长按图片', 'Long press');
   static String get actionClose => _t('关闭', 'Close');
   static String get actionDetail => _t('查看详情', 'View details');
@@ -412,6 +423,36 @@ class T {
   // Errors
   static String get somethingWentWrong => _t('出错了', 'Something went wrong');
   static String get retry => _t('重试', 'Retry');
+
+  // 加载更多
+  static String get loadMoreFailed => _t('加载更多失败', 'Failed to load more');
+  static String get retryLoadMore => _t('重试加载', 'Retry loading');
+  static String get noServerSelected =>
+      _t('尚未选择站点，请先在「服务器」中添加一个', 'No site selected yet. Add one in Servers first.');
+
+  // 底层异常 → 用户提示（供 _friendlyError 使用）
+  static String get errTimeout =>
+      _t('连接超时，请检查网络或尝试使用 Hosts 功能', 'Connection timed out. Check your network or try the Hosts feature.');
+  static String get errReceiveTimeout =>
+      _t('服务器响应超时，请稍后重试', 'Server took too long to respond. Try again later.');
+  static String get errRefused =>
+      _t('连接被拒绝，请检查服务器地址是否正确', 'Connection refused. Check the server address.');
+  static String get errDns =>
+      _t('域名解析失败，请检查网络或服务器地址', 'DNS lookup failed. Check your network or the server address.');
+  static String get errTls => _t('安全连接失败（证书校验未通过），请检查系统时间或网络环境',
+      'Secure connection failed (certificate not verified). Check the system clock or network.');
+  static String get err403 =>
+      _t('访问被拒绝（403），可能需要登录或 API 密钥', 'Access denied (403). You may need to sign in or set an API key.');
+  static String get err404 =>
+      _t('资源不存在（404），服务器地址可能已变更', 'Not found (404). The server address may have changed.');
+  static String get err429 =>
+      _t('请求过于频繁（429），请稍后再试', 'Too many requests (429). Try again later.');
+  static String get err5xx =>
+      _t('服务器内部错误（5xx），请稍后再试', 'Server error (5xx). Try again later.');
+  static String get errNetwork =>
+      _t('网络异常，请检查网络连接', 'Network error. Check your connection.');
+  static String get errBadPayload => _t('服务器返回数据异常，可能不是有效的 Booru 站点',
+      'Unexpected response. This may not be a valid booru site.');
 
   // Sort options - labels for display
   static String sortLabel(String key) {

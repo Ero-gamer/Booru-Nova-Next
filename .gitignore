@@ -16,6 +16,9 @@ flutter_*.png
 *.p8
 *.p12
 *.key
+# 例外：测试用自签证书（CN=mapped.test），供 hosts HTTPS 用例起本地 TLS
+# 服务器。不含任何真实密钥，缺失会导致该用例无法运行。
+!test/fixtures/*.key
 *.mobileprovision
 *.orig
 .metadata
@@ -32,5 +35,7 @@ key.properties
 .packages
 .pub/
 .pub-cache/
+# DeepSeek Harness 本地会话与存储目录
+.dsh/
 pubspec.lock
 android/local.properties

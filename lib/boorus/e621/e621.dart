@@ -19,7 +19,7 @@ class E621 extends Booru {
 
   @override
   BooruCapabilities get capabilities => const BooruCapabilities(
-        pools: true,        comments: true,
+        pools: true,
       );
 
   @override

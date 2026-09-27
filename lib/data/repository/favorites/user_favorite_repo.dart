@@ -25,15 +25,18 @@ class UserFavoritesRepo {
     if (cached != null) return cached;
     final raw = _box.get(_key) as String?;
     // 逐条容错：单条畸形收藏数据跳过，不让整个收藏列表加载崩溃。
-    final list = decodeJsonList(raw).map((e) {
-      final m = asStringMap(e);
-      if (m == null) return null;
-      try {
-        return BooruPost.fromJson(m);
-      } catch (_) {
-        return null;
-      }
-    }).whereType<BooruPost>().toList();
+    final list = decodeJsonList(raw)
+        .map((e) {
+          final m = asStringMap(e);
+          if (m == null) return null;
+          try {
+            return BooruPost.fromJson(m);
+          } catch (_) {
+            return null;
+          }
+        })
+        .whereType<BooruPost>()
+        .toList();
     _cache = list;
     _keySet = list.map((p) => _keyFor(p.id, p.serverId)).toSet();
     return list;
@@ -43,7 +46,10 @@ class UserFavoritesRepo {
 
   static String _keyFor(String postId, String serverId) => '$serverId|$postId';
 
-  bool isFavorite(String postId, {String serverId = ''}) {
+  /// [serverId] 必传：键是 `serverId|postId`，给个空串默认值会拼出一个
+  /// 永远不存在的键，`isFavorite` 静默返回 false、`remove` 静默删不到，
+  /// 而调用方看不到任何异常。漏传应该在编译期就报错。
+  bool isFavorite(String postId, {required String serverId}) {
     _load();
     return _keySet!.contains(_keyFor(postId, serverId));
   }
@@ -68,7 +74,8 @@ class UserFavoritesRepo {
     await _persist();
   }
 
-  Future<void> remove(String postId, {String serverId = ''}) async {
+  /// 同 [isFavorite]：`serverId` 必传，漏传会拼出空 serverId 的键而删不到。
+  Future<void> remove(String postId, {required String serverId}) async {
     final all = _load();
     final key = _keyFor(postId, serverId);
     all.removeWhere((p) => _keyFor(p.id, p.serverId) == key);

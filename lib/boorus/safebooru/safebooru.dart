@@ -18,8 +18,7 @@ class Safebooru extends Booru {
   String get baseUrl => 'https://safebooru.org';
 
   @override
-  BooruCapabilities get capabilities => const BooruCapabilities(        comments: true,
-      );
+  BooruCapabilities get capabilities => const BooruCapabilities();
 
   @override
   Map<String, String> get defaultHeaders => {

@@ -1,7 +1,13 @@
+import 'dart:io';
+
 import 'package:boorunova/data/repository/downloads/user_downloads_repo.dart';
 import 'package:boorunova/presentation/l10n/app_strings.dart';
+import 'package:boorunova/presentation/widgets/common/app_placeholders.dart';
+import 'package:boorunova/presentation/widgets/common/relative_time.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:share_plus/share_plus.dart';
+
 
 class DownloadsPage extends ConsumerWidget {
   const DownloadsPage({super.key});
@@ -45,36 +51,10 @@ class DownloadsPage extends ConsumerWidget {
       ),
       body: entries.isEmpty
           ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.download_outlined,
-                      size: 64,
-                      color: Theme.of(context)
-                          .colorScheme
-                          .onSurface
-                          .withOpacity(0.3)),
-                  const SizedBox(height: 16),
-                  Text(
-                    T.noDownloadsYet,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          color: Theme.of(context)
-                              .colorScheme
-                              .onSurface
-                              .withOpacity(0.5),
-                        ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    T.tapDownloadToSave,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Theme.of(context)
-                              .colorScheme
-                              .onSurface
-                              .withOpacity(0.3),
-                        ),
-                  ),
-                ],
+              child: EmptyState(
+                icon: Icons.download_outlined,
+                title: T.noDownloadsYet,
+                hint: T.downloadsHint,
               ),
             )
           : ListView.separated(
@@ -84,6 +64,9 @@ class DownloadsPage extends ConsumerWidget {
               itemBuilder: (context, index) {
                 final entry = entries[index];
                 return ListTile(
+                  // 此前整行不可点，localPath 存了却从不使用：下载记录
+                  // 只能删不能看。现在点开直接预览本地文件。
+                  onTap: () => _preview(context, entry),
                   leading: ClipRRect(
                     borderRadius: BorderRadius.circular(4),
                     child: Image.network(
@@ -102,22 +85,34 @@ class DownloadsPage extends ConsumerWidget {
                     ),
                   ),
                   title: Text(
-                    entry.imageUrl.split('/').last,
+                    _fileNameOf(entry),
                     style: const TextStyle(fontSize: 12),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
                   subtitle: Text(
-                    _formatDate(entry.downloadedAt),
+                    formatRelativeTime(entry.downloadedAt),
                     style: const TextStyle(fontSize: 11),
                   ),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.delete_outline, size: 20),
-                    tooltip: T.delete,
-                    onPressed: () async {
-                      await repo.remove(entry.postId);
-                      ref.invalidate(userDownloadsRepoProvider);
-                    },
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.open_in_new, size: 18),
+                        tooltip: T.openFile,
+                        onPressed: () => _openExternally(context, entry),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.share_outlined, size: 18),
+                        tooltip: T.share,
+                        onPressed: () => _share(context, entry),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline, size: 18),
+                        tooltip: T.deleteAction,
+                        onPressed: () => _remove(context, ref, repo, entry),
+                      ),
+                    ],
                   ),
                   dense: true,
                 );
@@ -126,12 +121,103 @@ class DownloadsPage extends ConsumerWidget {
     );
   }
 
-  String _formatDate(DateTime dt) {
-    final now = DateTime.now();
-    final diff = now.difference(dt);
-    if (diff.inMinutes < 1) return T.justNow;
-    if (diff.inHours < 1) return '${diff.inMinutes}${T.minutesAgo}';
-    if (diff.inDays < 1) return '${diff.inHours}${T.hoursAgo}';
-    return '${diff.inDays}${T.daysAgo}';
+  /// 优先展示落盘后的真实文件名；文件已被系统清理时退回 URL 尾段。
+  String _fileNameOf(DownloadEntry entry) {
+    final path = entry.localPath;
+    if (path.isEmpty) return entry.imageUrl.split('/').last;
+    final slash = path.lastIndexOf(RegExp(r'[/\\]'));
+    return slash >= 0 ? path.substring(slash + 1) : path;
+  }
+
+  /// 预览下载记录。落盘文件优先；文件已被系统清理时退回远端图，
+  /// 而不是弹一个坏掉的空框。
+  ///
+  /// 文件探测放在 showDialog 之前，弹窗本身不再跨 async 边界使用 context。
+  Future<void> _preview(BuildContext context, DownloadEntry entry) async {
+    var useLocal = false;
+    final path = entry.localPath;
+    if (path.isNotEmpty) {
+      // ignore: avoid_slow_async_io
+      useLocal = await File(path).exists();
+    }
+    if (!context.mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => Dialog(
+        insetPadding: const EdgeInsets.all(16),
+        child: InteractiveViewer(
+          maxScale: 4,
+          child: useLocal
+              ? Image.file(
+                  File(path),
+                  errorBuilder: (_, __, ___) => const _PreviewFallback(),
+                )
+              : Image.network(
+                  entry.imageUrl,
+                  errorBuilder: (_, __, ___) => const _PreviewFallback(),
+                ),
+        ),
+      ),
+    );
+  }
+
+  void _share(BuildContext context, DownloadEntry entry) {
+    final file = File(entry.localPath);
+    if (entry.localPath.isNotEmpty && file.existsSync()) {
+      Share.shareXFiles(
+        [XFile(entry.localPath)],
+        text: entry.imageUrl,
+      );
+      return;
+    }
+    Share.share(entry.imageUrl);
+  }
+
+  /// 用系统其他应用打开本地文件。走 share 而不是 url_launcher：
+  /// Android 上 file: URI 需要 FileProvider 授权才能被第三方应用接收，
+  /// 直接 launch 会静默失败；分享面板有系统兜底，成功率更高。
+  void _openExternally(BuildContext context, DownloadEntry entry) {
+    final path = entry.localPath;
+    if (path.isEmpty) {
+      Share.share(entry.imageUrl);
+      return;
+    }
+    Share.shareXFiles([XFile(path)], text: entry.imageUrl);
+  }
+
+  Future<void> _remove(BuildContext context, WidgetRef ref,
+      UserDownloadsRepo repo, DownloadEntry entry) async {
+    final messenger = ScaffoldMessenger.of(context);
+    await repo.remove(entry.postId, serverId: entry.serverId);
+    ref.invalidate(userDownloadsRepoProvider);
+    messenger.showSnackBar(
+      SnackBar(content: Text(T.removedFromDownloads)),
+    );
+  }
+
+
+}
+
+/// 预览失败占位：本地文件和远端图都可能已经不可用。
+class _PreviewFallback extends StatelessWidget {
+  const _PreviewFallback();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.broken_image_outlined, size: 48),
+          const SizedBox(height: 12),
+          Text(
+            T.fileUnavailable,
+            style: Theme.of(context).textTheme.bodyMedium,
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
   }
 }

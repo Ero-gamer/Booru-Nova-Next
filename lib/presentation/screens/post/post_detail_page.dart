@@ -1,9 +1,9 @@
 import 'package:boorunova/boorus/engine/booru_repository.dart';
-import 'package:boorunova/data/repository/booru/entity/post.dart';
 import 'package:boorunova/data/repository/favorites/user_favorite_repo.dart';
 import 'package:boorunova/presentation/l10n/app_strings.dart';
 import 'package:boorunova/presentation/provider/booru/page_state.dart';
 import 'package:boorunova/presentation/provider/tags_blocker_state.dart';
+import 'package:boorunova/presentation/widgets/common/rating_badge.dart';
 import 'package:boorunova/presentation/widgets/media/video_viewer.dart';
 import 'package:extended_image/extended_image.dart';
 import 'package:flutter/material.dart';
@@ -80,41 +80,60 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
 
   String _categoryLabel(String key) {
     switch (key) {
-      case 'meta': return 'META';
-      case 'artist': return 'ARTIST';
-      case 'character': return 'CHARACTER';
-      case 'copyright': return 'COPYRIGHT';
-      case 'general': return 'GENERAL';
-      default: return key.toUpperCase();
+      case 'meta':
+        return 'META';
+      case 'artist':
+        return 'ARTIST';
+      case 'character':
+        return 'CHARACTER';
+      case 'copyright':
+        return 'COPYRIGHT';
+      case 'general':
+        return 'GENERAL';
+      default:
+        return key.toUpperCase();
     }
   }
 
   Widget _buildTagRow(List<String> tags, String? category, ThemeData theme) {
-    return Wrap(spacing: 6, runSpacing: 4, children: tags.map((tag) {
-      final isSelected = _selectedTags.contains(tag);
-      final chipColor = _chipColor(theme, category ?? 'general');
-      return GestureDetector(
-        onTap: () => _onTagTap(tag),
-        child: Chip(
-          label: Text(tag, style: TextStyle(fontSize: 11, color: isSelected ? Colors.white : chipColor)),
-          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          visualDensity: VisualDensity.compact,
-          padding: EdgeInsets.zero,
-          labelPadding: const EdgeInsets.symmetric(horizontal: 6),
-          backgroundColor: isSelected ? chipColor : chipColor.withOpacity(0.15),
-          side: BorderSide(color: isSelected ? chipColor : chipColor.withOpacity(0.4)),
-        ),
-      );
-    }).toList());
+    return Wrap(
+        spacing: 6,
+        runSpacing: 4,
+        children: tags.map((tag) {
+          final isSelected = _selectedTags.contains(tag);
+          final chipColor = _chipColor(theme, category ?? 'general');
+          return GestureDetector(
+            onTap: () => _onTagTap(tag),
+            child: Chip(
+              label: Text(tag,
+                  style: TextStyle(
+                      fontSize: 11,
+                      color: isSelected ? Colors.white : chipColor)),
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              visualDensity: VisualDensity.compact,
+              padding: EdgeInsets.zero,
+              labelPadding: const EdgeInsets.symmetric(horizontal: 6),
+              backgroundColor:
+                  isSelected ? chipColor : chipColor.withOpacity(0.15),
+              side: BorderSide(
+                  color: isSelected ? chipColor : chipColor.withOpacity(0.4)),
+            ),
+          );
+        }).toList());
   }
 
   Color _chipColor(ThemeData theme, String? category) {
     switch (category) {
-      case 'artist': return Colors.blue;
-      case 'character': return Colors.green;
-      case 'copyright': return Colors.purple;
-      case 'meta': return Colors.orange;
-      default: return theme.colorScheme.onSurface;
+      case 'artist':
+        return Colors.blue;
+      case 'character':
+        return Colors.green;
+      case 'copyright':
+        return Colors.purple;
+      case 'meta':
+        return Colors.orange;
+      default:
+        return theme.colorScheme.onSurface;
     }
   }
 
@@ -132,10 +151,13 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
       'copyright': post.tagCopyright,
       'general': post.tagGeneral,
     };
-    final categorized = categories.entries.where((e) => e.value.isNotEmpty).toList();
+    final categorized =
+        categories.entries.where((e) => e.value.isNotEmpty).toList();
 
-    final imageUrl = post.sampleUrl.isNotEmpty ? post.sampleUrl : post.originalUrl;
-    final isVideo = imageUrl.endsWith('.mp4') || imageUrl.endsWith('.webm');
+    // 视频判定与瀑布流共用 isVideoPost：此前此处只看 sample 优先的
+    // imageUrl，而列表看 original，导致同一帖子列表标视频、详情按图渲染。
+    final isVideo = isVideoPost(post);
+    final imageUrl = mediaUrlOf(post);
 
     return Scaffold(
       appBar: AppBar(
@@ -145,7 +167,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
             icon: const Icon(Icons.share_outlined),
             tooltip: T.share,
             onPressed: () {
-              final url = post.postUrl ?? post.originalUrl;
+              final url = permalinkOf(post);
               if (url.isNotEmpty) Share.share(url);
             },
           ),
@@ -154,16 +176,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                 color: isFav ? Colors.red : null),
             onPressed: () async {
               final repo = ref.read(userFavoritesRepoProvider);
-              await repo.toggle(BooruPost(
-                id: post.id, serverId: post.serverId, thumbnailUrl: post.thumbnailUrl,
-                sampleUrl: post.sampleUrl, originalUrl: post.originalUrl,
-                tags: post.tags, tagGeneral: post.tagGeneral,
-                tagArtist: post.tagArtist, tagCharacter: post.tagCharacter,
-                tagCopyright: post.tagCopyright, tagMeta: post.tagMeta,
-                aspectRatio: post.aspectRatio, width: post.width,
-                height: post.height, rating: post.rating, score: post.score,
-                source: post.source, postUrl: post.postUrl,
-              ));
+              await repo.toggle(post.toPost());
               ref.invalidate(userFavoritesRepoProvider);
             },
           ),
@@ -178,13 +191,22 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                   ? VideoViewer(url: imageUrl)
                   : GestureDetector(
                       onTap: () => _openPostViewer(context),
-                      child: ExtendedImage.network(imageUrl, fit: BoxFit.contain, cache: true,
+                      child: ExtendedImage.network(
+                        imageUrl,
+                        fit: BoxFit.contain,
+                        cache: true,
                         loadStateChanged: (state) {
-                          if (state.extendedImageLoadState == LoadState.loading) {
-                            return const Center(child: CircularProgressIndicator());
+                          if (state.extendedImageLoadState ==
+                              LoadState.loading) {
+                            return const Center(
+                                child: CircularProgressIndicator());
                           }
-                          if (state.extendedImageLoadState == LoadState.failed) {
-                            return Center(child: Icon(Icons.broken_image, color: theme.colorScheme.onSurfaceVariant, size: 48));
+                          if (state.extendedImageLoadState ==
+                              LoadState.failed) {
+                            return Center(
+                                child: Icon(Icons.broken_image,
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                    size: 48));
                           }
                           return state.completedWidget;
                         },
@@ -198,28 +220,44 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _MetadataRow(icon: Icons.star_outline, label: T.score, value: post.score.toString()),
+                  _MetadataRow(
+                      icon: Icons.star_outline,
+                      label: T.score,
+                      value: post.score.toString()),
                   const SizedBox(height: 8),
-                  _MetadataRow(icon: Icons.star_outline, label: T.rating, value: post.rating.toUpperCase(),
-                      valueColor: post.rating == 'e' ? Colors.red : post.rating == 'q' ? Colors.orange : Colors.green),
+                  _MetadataRow(
+                      icon: Icons.star_outline,
+                      label: T.rating,
+                      value: post.rating.toUpperCase(),
+                      valueColor: ratingColor(post.rating)),
                   const SizedBox(height: 8),
-                  _MetadataRow(icon: Icons.aspect_ratio, label: T.size, value: '${post.width} x ${post.height}'),
+                  _MetadataRow(
+                      icon: Icons.aspect_ratio,
+                      label: T.size,
+                      value: '${post.width} x ${post.height}'),
                   if (post.source != null && post.source!.isNotEmpty) ...[
                     const SizedBox(height: 8),
-                    _MetadataRow(icon: Icons.link, label: T.source, value: post.source!),
+                    _MetadataRow(
+                        icon: Icons.link, label: T.source, value: post.source!),
                   ],
                   if (post.postUrl != null && post.postUrl!.isNotEmpty) ...[
                     const SizedBox(height: 8),
-                    _MetadataRow(icon: Icons.open_in_new, label: T.postUrl, value: post.postUrl!),
+                    _MetadataRow(
+                        icon: Icons.open_in_new,
+                        label: T.postUrl,
+                        value: post.postUrl!),
                   ],
                   const SizedBox(height: 24),
                   Row(children: [
-                    Icon(Icons.label_outline, size: 20, color: theme.colorScheme.primary),
+                    Icon(Icons.label_outline,
+                        size: 20, color: theme.colorScheme.primary),
                     const SizedBox(width: 8),
-                    Text('${T.tags} (${post.tags.length})', style: theme.textTheme.titleSmall),
+                    Text('${T.tags} (${post.tags.length})',
+                        style: theme.textTheme.titleSmall),
                     if (_selectedTags.isNotEmpty) ...[
                       const Spacer(),
-                      Text('${_selectedTags.length} 已选', style: theme.textTheme.bodySmall),
+                      Text('${_selectedTags.length} 已选',
+                          style: theme.textTheme.bodySmall),
                     ],
                   ]),
                   const SizedBox(height: 12),
@@ -229,7 +267,10 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text(_categoryLabel(cat.key), style: TextStyle(fontSize: 10, color: theme.colorScheme.onSurfaceVariant)),
+                          Text(_categoryLabel(cat.key),
+                              style: TextStyle(
+                                  fontSize: 10,
+                                  color: theme.colorScheme.onSurfaceVariant)),
                           const SizedBox(height: 4),
                           _buildTagRow(cat.value, cat.key, theme),
                           const SizedBox(height: 8),
@@ -238,7 +279,9 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                   else
                     _buildTagRow(post.tags, null, theme),
                   const SizedBox(height: 32),
-                  SafeArea(child: SizedBox(width: double.infinity,
+                  SafeArea(
+                      child: SizedBox(
+                    width: double.infinity,
                     child: FilledButton.icon(
                       onPressed: () => _openPostViewer(context),
                       icon: const Icon(Icons.open_in_full),
@@ -294,7 +337,11 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
 }
 
 class _MetadataRow extends StatelessWidget {
-  const _MetadataRow({required this.icon, required this.label, required this.value, this.valueColor});
+  const _MetadataRow(
+      {required this.icon,
+      required this.label,
+      required this.value,
+      this.valueColor});
   final IconData icon;
   final String label;
   final String value;
@@ -303,11 +350,19 @@ class _MetadataRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(children: [
-      Icon(icon, size: 18, color: Theme.of(context).colorScheme.onSurfaceVariant),
+      Icon(icon,
+          size: 18, color: Theme.of(context).colorScheme.onSurfaceVariant),
       const SizedBox(width: 8),
-      Text('$label: ', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 13)),
-      Expanded(child: Text(value, style: TextStyle(fontWeight: FontWeight.w500, fontSize: 13, color: valueColor),
-          maxLines: 2, overflow: TextOverflow.ellipsis)),
+      Text('$label: ',
+          style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              fontSize: 13)),
+      Expanded(
+          child: Text(value,
+              style: TextStyle(
+                  fontWeight: FontWeight.w500, fontSize: 13, color: valueColor),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis)),
     ]);
   }
 }

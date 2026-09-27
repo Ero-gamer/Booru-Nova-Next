@@ -18,8 +18,7 @@ class Rule34 extends Booru {
   String get baseUrl => 'https://api.rule34.xxx';
 
   @override
-  BooruCapabilities get capabilities => const BooruCapabilities(        comments: false,
-      );
+  BooruCapabilities get capabilities => const BooruCapabilities();
 
   @override
   Map<String, String> get defaultHeaders => {

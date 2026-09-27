@@ -68,16 +68,16 @@ class _PoolsPageState extends ConsumerState<PoolsPage> {
       return const Center(child: CircularProgressIndicator());
     }
     if (_error != null) {
-      return _Placeholder(
+      return EmptyState(
         icon: Icons.error_outline,
-        text: _error!,
+        title: _error!,
         action: TextButton(onPressed: _load, child: const Text('重试')),
       );
     }
     if (_pools.isEmpty) {
-      return const _Placeholder(
+      return const EmptyState(
         icon: Icons.collections_outlined,
-        text: '当前站点不支持图集，或暂无图集',
+        title: '当前站点不支持图集，或暂无图集',
       );
     }
     return RefreshIndicator(
@@ -120,26 +120,6 @@ class _PoolsPageState extends ConsumerState<PoolsPage> {
           );
         },
       ),
-    );
-  }
-}
-
-class _Placeholder extends StatelessWidget {
-  const _Placeholder({
-    required this.icon,
-    required this.text,
-    this.action,
-  });
-
-  final IconData icon;
-  final String text;
-  final Widget? action;
-
-  @override
-  Widget build(BuildContext context) {
-    // 视觉统一收口到共享 EmptyState，调用方签名保持不变。
-    return Center(
-      child: EmptyState(icon: icon, title: text, action: action),
     );
   }
 }

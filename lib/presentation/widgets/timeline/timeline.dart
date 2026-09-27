@@ -34,6 +34,7 @@ class Timeline extends StatelessWidget {
   final void Function(int index)? onLongPress;
   final int? crossAxisCount;
   final void Function(int index)? onFavorite;
+
   /// 长按浮起放大镜预览（非多选模式下生效）。
   final bool enablePeekPreview;
 
@@ -59,9 +60,10 @@ class Timeline extends StatelessWidget {
               decodeWidth: decodeWidth,
               onTap: () => onPostTap(index),
               enablePeekPreview: enablePeekPreview,
-              onLongPress: onLongPress != null ? () => onLongPress!(index) : null,
+              onLongPress:
+                  onLongPress != null ? () => onLongPress!(index) : null,
               selectionMode: selectionMode,
-              isSelected: selectedIds.contains(posts[index].id),
+              isSelected: selectedIds.contains(postKeyOf(posts[index])),
               onSelectionToggle: onSelectionToggle != null
                   ? () => onSelectionToggle!(index)
                   : null,
@@ -95,7 +97,8 @@ class _AnimatedTileState extends ConsumerState<_AnimatedTile>
     super.initState();
     // 「减少动画」开启时跳过入场动画，仅保留静态内容
     if (ref.read(settingsProvider).reduceAnimations) return;
-    final controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 300));
+    final controller = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 300));
     _controller = controller;
     _anim = CurvedAnimation(parent: controller, curve: Curves.easeOutCubic);
     // Timer 可在 dispose 时取消，避免快速滚动后仍排队 forward
@@ -165,7 +168,8 @@ class _PostTile extends StatelessWidget {
         );
       },
       transitionBuilder: (context, animation, _, child) {
-        final curved = CurvedAnimation(parent: animation, curve: Curves.easeOutBack);
+        final curved =
+            CurvedAnimation(parent: animation, curve: Curves.easeOutBack);
         return FadeTransition(
           opacity: animation,
           child: ScaleTransition(scale: curved, child: child),
@@ -176,7 +180,7 @@ class _PostTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isVideo = _isVideo(post);
+    final isVideo = isVideoPost(post);
     final showMeta = isVideo || post.score != 0;
     return GestureDetector(
       onTap: selectionMode ? onSelectionToggle : onTap,
@@ -192,7 +196,7 @@ class _PostTile extends StatelessWidget {
           child: AspectRatio(
             aspectRatio: post.aspectRatio,
             child: Stack(
-            fit: StackFit.expand,
+              fit: StackFit.expand,
               children: [
                 ExtendedImage.network(
                   post.thumbnailUrl,
@@ -206,8 +210,11 @@ class _PostTile extends StatelessWidget {
                     }
                     if (state.extendedImageLoadState == LoadState.failed) {
                       return Container(
-                        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                        child: const Center(child: Icon(Icons.broken_image_outlined, size: 24)),
+                        color: Theme.of(context)
+                            .colorScheme
+                            .surfaceContainerHighest,
+                        child: const Center(
+                            child: Icon(Icons.broken_image_outlined, size: 24)),
                       );
                     }
                     return state.completedWidget;
@@ -281,8 +288,8 @@ class _PostTile extends StatelessWidget {
                               // 其余 tile 的收藏变化不再触发整屏重建
                               final isFav = ref.watch(
                                 userFavoritesRepoProvider.select(
-                                  (repo) =>
-                                      repo.isFavorite(post.id, serverId: post.serverId),
+                                  (repo) => repo.isFavorite(post.id,
+                                      serverId: post.serverId),
                                 ),
                               );
                               return Icon(
@@ -330,23 +337,15 @@ class _PostTile extends StatelessWidget {
                   ),
                 if (isSelected)
                   Container(
-                    color: Theme.of(context)
-                        .colorScheme
-                        .primary
-                        .withOpacity(0.15),
+                    color:
+                        Theme.of(context).colorScheme.primary.withOpacity(0.15),
                   ),
               ],
             ),
           ),
         ),
       ),
-      );
-  }
-
-  static bool _isVideo(PostSummary post) {
-    final url = (post.originalUrl.isNotEmpty ? post.originalUrl : post.sampleUrl)
-        .toLowerCase();
-    return url.endsWith('.mp4') || url.endsWith('.webm');
+    );
   }
 
   /// 评分缩写：1234 → 1.2k，12345 → 1.2w（万）

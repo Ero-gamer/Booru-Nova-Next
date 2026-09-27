@@ -22,6 +22,7 @@ class HistoryEntry {
     required this.rating,
     required this.score,
     required this.viewedAt,
+    this.postUrl,
   });
 
   factory HistoryEntry.fromPost(PostSummary post) => HistoryEntry(
@@ -36,6 +37,7 @@ class HistoryEntry {
         rating: post.rating,
         score: post.score,
         viewedAt: DateTime.now(),
+        postUrl: post.postUrl,
       );
 
   factory HistoryEntry.fromJson(Map<String, dynamic> json) => HistoryEntry(
@@ -44,7 +46,8 @@ class HistoryEntry {
         thumbnailUrl: json['thumbnailUrl']?.toString() ?? '',
         sampleUrl: json['sampleUrl']?.toString() ?? '',
         originalUrl: json['originalUrl']?.toString() ?? '',
-        tags: json['tags'] is List ? List<String>.from(json['tags'] as List) : [],
+        tags:
+            json['tags'] is List ? List<String>.from(json['tags'] as List) : [],
         width: json['width'] is int ? json['width'] as int : 0,
         height: json['height'] is int ? json['height'] as int : 0,
         rating: json['rating']?.toString() ?? 'q',
@@ -52,8 +55,27 @@ class HistoryEntry {
         viewedAt: json['viewedAt'] != null
             ? DateTime.tryParse(json['viewedAt'].toString()) ?? DateTime.now()
             : DateTime.now(),
+        postUrl: json['postUrl']?.toString(),
       );
 
+  /// 还原为 [PostSummary]，让历史记录能直接喂给查看器。
+  /// 历史里已经存了查看所需的全部字段（缩略图/大图/标签/尺寸/分级），
+  /// 不需要回站点重新拉取——历史页此前没有 onTap，等于这些字段白存。
+  PostSummary toPostSummary() => PostSummary(
+        id: postId,
+        serverId: serverId,
+        thumbnailUrl: thumbnailUrl,
+        sampleUrl: sampleUrl,
+        originalUrl: originalUrl,
+        tags: tags,
+        width: width,
+        height: height,
+        rating: rating,
+        score: score,
+        postUrl: postUrl,
+        // 历史不存 aspectRatio；用真实像素兜底，避免退化成 1:1 拉伸。
+        aspectRatio: (width > 0 && height > 0) ? width / height : 1.0,
+      );
   final String postId;
   final String serverId;
   final String thumbnailUrl;
@@ -65,6 +87,7 @@ class HistoryEntry {
   final String rating;
   final int score;
   final DateTime viewedAt;
+  final String? postUrl;
 
   Map<String, dynamic> toJson() => {
         'postId': postId,
@@ -78,6 +101,7 @@ class HistoryEntry {
         'rating': rating,
         'score': score,
         'viewedAt': viewedAt.toIso8601String(),
+        'postUrl': postUrl,
       };
 }
 
@@ -92,15 +116,18 @@ class UserHistoryRepo {
     final cached = _cache;
     if (cached != null) return cached;
     final raw = asStringOrNull(HiveSetup.settingsBox.get(_key));
-    final list = decodeJsonList(raw).map((e) {
-      final m = asStringMap(e);
-      if (m == null) return null;
-      try {
-        return HistoryEntry.fromJson(m);
-      } catch (_) {
-        return null;
-      }
-    }).whereType<HistoryEntry>().toList();
+    final list = decodeJsonList(raw)
+        .map((e) {
+          final m = asStringMap(e);
+          if (m == null) return null;
+          try {
+            return HistoryEntry.fromJson(m);
+          } catch (_) {
+            return null;
+          }
+        })
+        .whereType<HistoryEntry>()
+        .toList();
     _cache = list;
     return list;
   }
@@ -112,6 +139,16 @@ class UserHistoryRepo {
     all.removeWhere((e) => e.postId == post.id && e.serverId == post.serverId);
     all.insert(0, HistoryEntry.fromPost(post));
     if (all.length > 200) all.removeRange(200, all.length);
+    await _save(all);
+  }
+
+  /// 删除单条历史。[serverId] 传入时按 postId + serverId 精确定位——
+  /// 不同站点的 post id 会重复，只按 postId 删会误伤同名条目。
+  /// 传 null 则删除所有站点下该 id 的条目。
+  Future<void> remove(String postId, {String? serverId}) async {
+    final all = _load();
+    all.removeWhere((e) =>
+        e.postId == postId && (serverId == null || e.serverId == serverId));
     await _save(all);
   }
 
