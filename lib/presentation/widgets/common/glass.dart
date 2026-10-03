@@ -22,6 +22,8 @@ class GlassContainer extends ConsumerWidget {
     this.borderRadius = const BorderRadius.all(Radius.circular(24)),
     this.padding = EdgeInsets.zero,
     this.tint,
+    this.fillOpacity,
+    this.blur = true,
   });
 
   final Widget child;
@@ -32,6 +34,17 @@ class GlassContainer extends ConsumerWidget {
   /// （查看器背景恒为黑色，浅色主题下若用白色玻璃会破坏氛围）。
   final Color? tint;
 
+  /// 覆盖填充不透明度（默认见 [build]）。只改透明度不改底色：
+  /// 侧栏里每一格都要比整块抽屉面板更透一点，才能读成「浮在上面的玻璃」。
+  final double? fillOpacity;
+
+  /// 是否自己再叠一层 [BackdropFilter]。
+  ///
+  /// 用于「上层已经有玻璃」的场景（例如抽屉里的菜单项）：抽屉自身已经
+  /// 模糊了下层内容，再模糊一次采样的还是那层模糊结果，视觉几乎没有变化，
+  /// 却要多付 N 次模糊的合成开销。此时传 false，只保留玻璃的填充/描边/高光。
+  final bool blur;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -40,7 +53,7 @@ class GlassContainer extends ConsumerWidget {
         ref.watch(settingsProvider.select((s) => s.reduceAnimations));
 
     final base = (tint ?? (dark ? Colors.black : colorScheme.surface))
-        .withOpacity(skipBlur ? 0.92 : 0.55);
+        .withOpacity(fillOpacity ?? (skipBlur ? 0.92 : 0.55));
     final sheen = Colors.white.withOpacity(dark ? 0.10 : 0.30);
     final stroke = Colors.white.withOpacity(dark ? 0.14 : 0.50);
 
@@ -60,7 +73,7 @@ class GlassContainer extends ConsumerWidget {
       child: Padding(padding: padding, child: child),
     );
 
-    if (skipBlur) return decorated;
+    if (skipBlur || !blur) return decorated;
     return ClipRRect(
       borderRadius: borderRadius,
       child: BackdropFilter(
@@ -91,9 +104,12 @@ class GlassDrawer extends ConsumerWidget {
     final skipBlur =
         ref.watch(settingsProvider.select((s) => s.reduceAnimations));
 
-    // 侧栏底色：浅色用高反差的白玻璃，深色用黑玻璃，均半透明
+    // 侧栏底色：浅色用高反差的白玻璃，深色用黑玻璃，均半透明。
+    // 0.62 → 0.52：抽屉里的每个菜单项现在自己也是一块玻璃，面板再压得
+    // 那么实，下面那层模糊内容就透不出来，菜单项会和面板糊成同一种颜色。
+    // 让面板更透一点，下层滚动内容才在菜单项背后留下可被「折射」的纹理。
     final base = (dark ? Colors.black : colorScheme.surface)
-        .withOpacity(skipBlur ? 0.94 : 0.62);
+        .withOpacity(skipBlur ? 0.94 : 0.52);
     final sheen = Colors.white.withOpacity(dark ? 0.08 : 0.25);
     final stroke = Colors.white.withOpacity(dark ? 0.12 : 0.40);
 
@@ -108,7 +124,11 @@ class GlassDrawer extends ConsumerWidget {
       decoration: BoxDecoration(
         borderRadius: radius,
         border: Border(
-          right: BorderSide(color: stroke, width: 0.8),
+          // 高光描边只画在朝外的边缘：右抽屉贴右屏，亮边应在左侧。
+          // 此前两侧都画右边，右抽屉那条亮边落在屏幕外，等于没有。
+          left: right ? BorderSide(color: stroke, width: 0.8) : BorderSide.none,
+          right:
+              right ? BorderSide.none : BorderSide(color: stroke, width: 0.8),
         ),
         gradient: LinearGradient(
           begin: Alignment.topCenter,

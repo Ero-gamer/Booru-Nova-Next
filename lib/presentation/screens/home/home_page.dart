@@ -10,6 +10,7 @@ import 'package:boorunova/presentation/screens/home/home_content.dart';
 import 'package:boorunova/presentation/screens/server/booru_site_template.dart';
 import 'package:boorunova/presentation/widgets/common/glass.dart';
 import 'package:boorunova/presentation/widgets/common/server_favicon.dart';
+import 'package:boorunova/presentation/widgets/common/side_nav.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -225,6 +226,78 @@ class _HomePageState extends ConsumerState<HomePage> {
     );
   }
 
+  /// 关掉抽屉再跳转。侧栏所有入口共用，避免每项都写两行。
+  void _goFromDrawer(String location) {
+    Navigator.pop(context);
+    context.push(location);
+  }
+
+  /// 左抽屉头图：品牌图标 + 应用名，白字压在随机头图的深色压暗层上。
+  Widget _brandHeader(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Icon(Icons.image_search, size: 32, color: Colors.white),
+        const SizedBox(height: 6),
+        Text(
+          'BooruNova',
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
+        ),
+      ],
+    );
+  }
+
+  /// 右抽屉头图内容：当前站点 + 点击切换，与搜索栏 favicon 共用同一套菜单。
+  ///
+  /// 此前这里只有 Navigator.pop + 一行 TODO 注释，按下等于关抽屉。
+  Widget _serverHeader(BuildContext context) {
+    // 没有活动站点时不要走 _buildFavicon：它对 _activeServer 取非空断言，
+    // 而右抽屉在「一个站点都没配好」时也能被滑出来，会直接崩在断言上。
+    final server = _activeServer;
+    final leading = server == null
+        ? const SizedBox(width: 24, height: 24)
+        : _serverFavicon(server.baseUrl, server.type, size: 24);
+
+    return Builder(
+      builder: (ctx) => InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () {
+          Navigator.pop(ctx);
+          // 抽屉已关闭，原锚点元素随之卸载；用 overlay 重新定位。
+          final overlay = Overlay.of(context);
+          final box = context.findRenderObject() as RenderBox?;
+          if (box == null) return;
+          _openServerSwitcherAt(
+            overlay.context,
+            box.localToGlobal(const Offset(16, 88)),
+          );
+        },
+        child: Row(
+          children: [
+            leading,
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                server?.name ?? 'BooruNova',
+                style: Theme.of(context)
+                    .textTheme
+                    .titleMedium
+                    ?.copyWith(color: Colors.white),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Icon(Icons.swap_horiz, size: 18, color: Colors.white70),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final servers = ref.watch(userServerRepoProvider).getAll();
@@ -239,81 +312,45 @@ class _HomePageState extends ConsumerState<HomePage> {
         // 背景交给 GlassDrawer 的磨砂层；这里透明，让抽屉滑出时透出下层
         backgroundColor: Colors.transparent,
         child: GlassDrawer(
-          child: ListView(
-            padding: EdgeInsets.zero,
-            children: [
-              DrawerHeader(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      Theme.of(context).colorScheme.primaryContainer,
-                      Theme.of(context).colorScheme.surface,
-                    ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
+          child: SideNavPanel(
+            header: _brandHeader(context),
+            groups: [
+              [
+                SideNavItem(
+                  icon: Icons.favorite_outline,
+                  label: T.favorites,
+                  onTap: () => _goFromDrawer('/favorites'),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    const Icon(Icons.image_search, size: 40),
-                    const SizedBox(height: 8),
-                    Text('BooruNova',
-                        style: Theme.of(context).textTheme.titleLarge),
-                  ],
+                SideNavItem(
+                  icon: Icons.download_outlined,
+                  label: T.downloads,
+                  onTap: () => _goFromDrawer('/downloads'),
                 ),
-              ),
-              ListTile(
-                leading: const Icon(Icons.favorite_outline),
-                title: Text(T.favorites),
-                onTap: () {
-                  Navigator.pop(context);
-                  context.push('/favorites');
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.download_outlined),
-                title: Text(T.downloads),
-                onTap: () {
-                  Navigator.pop(context);
-                  context.push('/downloads');
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.history),
-                title: Text(T.history),
-                onTap: () {
-                  Navigator.pop(context);
-                  context.push('/history');
-                },
-              ),
-              const Divider(),
-              ListTile(
-                leading: const Icon(Icons.dns_outlined),
-                title: Text(T.servers),
-                onTap: () {
-                  Navigator.pop(context);
-                  context.push('/servers');
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.block_outlined),
-                title: Text(T.blacklist),
-                onTap: () {
-                  Navigator.pop(context);
-                  context.push('/blacklist');
-                },
-              ),
-              const Divider(),
-              ListTile(
-                leading: const Icon(Icons.settings_outlined),
-                title: Text(T.settings),
-                onTap: () {
-                  Navigator.pop(context);
-                  context.push('/settings');
-                },
-              ),
+                SideNavItem(
+                  icon: Icons.history,
+                  label: T.history,
+                  onTap: () => _goFromDrawer('/history'),
+                ),
+              ],
+              [
+                SideNavItem(
+                  icon: Icons.dns_outlined,
+                  label: T.servers,
+                  onTap: () => _goFromDrawer('/servers'),
+                ),
+                SideNavItem(
+                  icon: Icons.block_outlined,
+                  label: T.blacklist,
+                  onTap: () => _goFromDrawer('/blacklist'),
+                ),
+              ],
+              [
+                SideNavItem(
+                  icon: Icons.settings_outlined,
+                  label: T.settings,
+                  onTap: () => _goFromDrawer('/settings'),
+                ),
+              ],
             ],
           ),
         ),
@@ -324,83 +361,24 @@ class _HomePageState extends ConsumerState<HomePage> {
         backgroundColor: Colors.transparent,
         child: GlassDrawer(
           right: true,
-          child: ListView(
-            padding: EdgeInsets.zero,
-            children: [
-              DrawerHeader(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      Theme.of(context).colorScheme.primaryContainer,
-                      Theme.of(context).colorScheme.surface,
-                    ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
+          child: SideNavPanel(
+            right: true,
+            header: _serverHeader(context),
+            groups: [
+              [
+                SideNavItem(
+                  icon: Icons.explore_outlined,
+                  label: T.explore,
+                  onTap: () => _goFromDrawer('/explore'),
+                ),
+                // 图集仅在实际实现了 fetchPools 的引擎（danbooru/e621/moebooru）显示
+                if (_supportsPools)
+                  SideNavItem(
+                    icon: Icons.collections_outlined,
+                    label: T.pools,
+                    onTap: () => _goFromDrawer('/pools'),
                   ),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    // 点击即切换站点，与搜索栏 favicon 共用同一套切换菜单。
-                    // 此前这里只有 Navigator.pop + 一行 TODO 注释，按下等于关抽屉。
-                    Builder(
-                      builder: (ctx) => InkWell(
-                        onTap: () {
-                          Navigator.pop(ctx);
-                          // 抽屉已关闭，原锚点元素随之卸载；用 overlay 重新定位。
-                          final overlay = Overlay.of(context);
-                          final box = context.findRenderObject() as RenderBox?;
-                          if (box == null) return;
-                          _openServerSwitcherAt(
-                            overlay.context,
-                            box.localToGlobal(const Offset(16, 88)),
-                          );
-                        },
-                        child: Row(
-                          children: [
-                            _buildFavicon(_activeServer?.baseUrl ?? ''),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                _activeServer?.name ?? 'BooruNova',
-                                style: Theme.of(context).textTheme.titleMedium,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Icon(
-                              Icons.swap_horiz,
-                              size: 18,
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onSurfaceVariant,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              ListTile(
-                leading: const Icon(Icons.explore_outlined),
-                title: Text(T.explore),
-                onTap: () {
-                  Navigator.pop(context);
-                  context.push('/explore');
-                },
-              ),
-              // 图集仅在实际实现了 fetchPools 的引擎（danbooru/e621/moebooru）显示
-              if (_supportsPools)
-                ListTile(
-                  leading: const Icon(Icons.collections_outlined),
-                  title: Text(T.pools),
-                  onTap: () {
-                    Navigator.pop(context);
-                    context.push('/pools');
-                  },
-                ),
+              ],
             ],
           ),
         ),
