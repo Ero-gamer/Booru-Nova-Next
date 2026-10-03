@@ -19,7 +19,7 @@
 
 ### 📲 立即下载
 
-**最新版本：[v1.8.1](https://github.com/qingzhuo-cn/boorunova/releases/latest)** —— Android 8.0+
+**最新版本：[v1.8.2](https://github.com/qingzhuo-cn/boorunova/releases/latest)** —— Android 8.0+
 
 绝大多数手机装 **arm64** 那个（19 MB）就够了；**通用包**留给模拟器和少数 x86_64 设备。
 
