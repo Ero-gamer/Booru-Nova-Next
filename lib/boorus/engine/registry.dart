@@ -9,6 +9,8 @@ import 'package:boorunova/boorus/engine/booru_repository.dart';
 import 'package:boorunova/boorus/engine/booru_type.dart';
 import 'package:boorunova/boorus/gelbooru_v2/gelbooru_v2.dart';
 import 'package:boorunova/boorus/gelbooru_v2/gelbooru_v2_repository.dart';
+import 'package:boorunova/boorus/kvs/kvs.dart';
+import 'package:boorunova/boorus/kvs/kvs_repository.dart';
 import 'package:boorunova/boorus/moebooru/moebooru.dart';
 import 'package:boorunova/boorus/moebooru/moebooru_repository.dart';
 import 'package:boorunova/boorus/rule34/rule34.dart';
@@ -17,6 +19,8 @@ import 'package:boorunova/boorus/safebooru/safebooru.dart';
 import 'package:boorunova/boorus/safebooru/safebooru_repository.dart';
 import 'package:boorunova/boorus/sankaku/sankaku.dart';
 import 'package:boorunova/boorus/sankaku/sankaku_repository.dart';
+import 'package:boorunova/boorus/shimmie2/shimmie2.dart';
+import 'package:boorunova/boorus/shimmie2/shimmie2_repository.dart';
 import 'package:boorunova/boorus/zerochan/zerochan.dart';
 import 'package:boorunova/boorus/zerochan/zerochan_repository.dart';
 import 'package:boorunova/data/repository/hosts/user_hosts_repo.dart';
@@ -88,6 +92,19 @@ void _registerDefaults(BooruRegistry registry) {
         repositoryFactory: (dio, {serverId}) =>
             SafebooruRepository(dio: dio, serverId: serverId ?? 'safebooru'),
       ));
+
+  // rule34 家族：paheal 系（Shimmie2）与视频站（KVS）
+  registry.register(BooruType.shimmie2, () => BooruEngine(
+        booru: const Shimmie2(),
+        repositoryFactory: (dio, {serverId}) =>
+            Shimmie2Repository(dio: dio, serverId: serverId ?? 'shimmie2'),
+      ));
+
+  registry.register(BooruType.kvs, () => BooruEngine(
+        booru: const KvsTube(),
+        repositoryFactory: (dio, {serverId}) =>
+            KvsRepository(dio: dio, serverId: serverId ?? 'kvs'),
+      ));
 }
 
 class BooruRegistry {
@@ -117,11 +134,40 @@ class BooruRegistry {
     BooruType.gelbooruV2: '/index.php?page=dapi&s=post&q=index&json=1&limit=1',
     BooruType.rule34: '/index.php?page=dapi&s=post&q=index&json=1&limit=1',
     BooruType.safebooru: '/index.php?page=dapi&s=post&q=index&json=1&limit=1',
+    // paheal 系：图库首页（老分支没有 JSON 接口，用列表页探活）
+    BooruType.shimmie2: '/post/list/1',
+    // 视频站（KVS）：最新更新页
+    BooruType.kvs: '/latest-updates/1/',
+  };
+
+  /// 探测时的响应体特征校验。
+  ///
+  /// 只看状态码会把站点判错：实测 safebooru.org 的 `/?json=1` 返回 200
+  /// （HTML 首页），排在前面的 zerochan 因此会把 safebooru 认成自己。
+  /// 这里对每个类型补一个「响应里应该有这个」的特征。
+  static const _probeSignatures = <BooruType, String>{
+    BooruType.danbooru: '"id"',
+    BooruType.moebooru: '"id"',
+    BooruType.e621: '"posts"',
+    BooruType.sankaku: '"id"',
+    BooruType.zerochan: '"items"',
+    BooruType.gelbooruV2: '<post',
+    BooruType.rule34: '<post',
+    BooruType.safebooru: '<post',
+    BooruType.shimmie2: '/post/view/',
+    BooruType.kvs: '/videos/',
   };
 
   Future<BooruType?> probe(String baseUrl, {BooruType? singleType}) async {
     final url = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
     final dio = DioFactory.createProbe(hostsInterceptor: hostsInterceptor);
+
+    // 先按域名判：命中的话根本不用发请求（也避免把 safebooru.org 认成 zerochan
+    // ——它的 /?json=1 确实返回 200，只看状态码必然误判）。
+    if (singleType == null) {
+      final byDomain = scanner(url);
+      if (byDomain != null) return byDomain;
+    }
 
     final types = singleType != null ? [singleType] : _probePaths.keys;
     for (final type in types) {
@@ -129,9 +175,12 @@ class BooruRegistry {
       if (path == null) continue;
       try {
         final response = await dio.get('$url$path');
-        if (response.statusCode == 200) {
-          return type;
-        }
+        if (response.statusCode != 200) continue;
+        // 状态码之外还要看响应体特征：证不了自己的类型不算命中。
+        final signature = _probeSignatures[type];
+        if (signature == null) return type;
+        final body = response.data?.toString() ?? '';
+        if (body.contains(signature)) return type;
       } catch (_) {
         continue;
       }
@@ -150,6 +199,9 @@ class BooruRegistry {
       BooruType.zerochan: 'zerochan.net',
       BooruType.rule34: 'rule34.xxx',
       BooruType.safebooru: 'safebooru.org',
+      // rule34 家族与视频站
+      BooruType.shimmie2: 'paheal.net',
+      BooruType.kvs: 'rule34video.com',
     };
     for (final entry in defaultUrls.entries) {
       if (lower.contains(entry.value)) return entry.key;

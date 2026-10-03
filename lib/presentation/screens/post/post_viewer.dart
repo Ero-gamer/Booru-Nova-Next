@@ -8,7 +8,7 @@ import 'package:boorunova/presentation/l10n/app_strings.dart';
 import 'package:boorunova/presentation/provider/app_settings.dart';
 import 'package:boorunova/presentation/provider/download_progress.dart';
 import 'package:boorunova/presentation/widgets/common/glass.dart';
-import 'package:boorunova/presentation/widgets/media/video_viewer.dart';
+import 'package:boorunova/presentation/widgets/media/resolved_video.dart';
 import 'package:extended_image/extended_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -235,7 +235,7 @@ class _PostViewerState extends ConsumerState<PostViewer>
                 return Center(
                   child: Hero(
                     tag: 'post_${p.serverId}_${p.id}',
-                    child: VideoViewer(url: url),
+                    child: ResolvedVideo(post: p),
                   ),
                 );
               }

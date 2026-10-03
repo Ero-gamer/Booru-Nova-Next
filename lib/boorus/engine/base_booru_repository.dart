@@ -29,6 +29,16 @@ abstract class BaseBooruRepository implements BooruRepository {
   @override
   Future<List<BooruPool>> fetchPools({int page = 1, int limit = 20}) async => [];
 
+  /// 默认：本引擎不支持按需解析播放地址（只有视频站需要）。
+  ///
+  /// 必须在这里给默认实现：子类用的是 `implements BooruRepository`，
+  /// 接口的默认函数体不会被继承，缺一个成员就编译不过。
+  @override
+  Future<String?> resolvePlaybackUrl(String postUrl) async => null;
+
+  @override
+  Future<List<String>> fetchTrendingTags({int limit = 20}) async => [];
+
   /// 拼接搜索标签：把用户输入标签与评级过滤合并为站点查询串。
   ///
   /// [ratingMap] 为引擎特定的评级映射，例如 danbooru 用 `rating:s`，

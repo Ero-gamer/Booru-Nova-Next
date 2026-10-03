@@ -102,6 +102,10 @@ class T {
   static String get postDetails => _t('帖子详情', 'Post details');
   static String get stopSlideshow => _t('停止自动切换', 'Stop slideshow');
   static String get autoSlideshow => _t('自动切换', 'Auto slideshow');
+  static String get videoPlayFailed =>
+      _t('视频无法播放', 'This video cannot be played');
+  static String get streamCannotSave =>
+      _t('该视频只有流地址，无法保存到相册', 'Stream-only video cannot be saved');
 
   // Post Detail
   static String get score => _t('分数', 'Score');

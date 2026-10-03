@@ -37,6 +37,10 @@ class _FakeRepo implements BooruRepository {
   @override
   String get serverId => 'test';
 
+  /// 视频解析是接口成员（视频站用），图片站返回 null 即「无需按需解析」。
+  @override
+  Future<String?> resolvePlaybackUrl(String postUrl) async => null;
+
   @override
   Future<BooruPageResult> searchPosts(BooruQuery query) async {
     queries.add(query);

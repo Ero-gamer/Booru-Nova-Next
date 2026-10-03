@@ -36,6 +36,16 @@ class ImageDownloader {
         );
       }
 
+      // 流清单（m3u8/mpd）不是文件：下载下来只有几十字节的文本，
+      // 存进相册也没法播。明确拒绝并给出可读原因，而不是写一个假文件。
+      // 播放不受影响——播放器原生支持 HLS。
+      if (isStreamManifest(url)) {
+        return const DownloadResult(
+          success: false,
+          error: 'stream manifest is not downloadable',
+        );
+      }
+
       final dir = await resolveDownloadDir(downloadPath);
       final path =
           '${dir.path}/${uniqueFileName(url, postId: postId, namespace: namespace)}';

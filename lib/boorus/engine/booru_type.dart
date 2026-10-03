@@ -8,6 +8,7 @@ enum BooruType {
   szurubooru('szurubooru'),
   philomena('philomena'),
   shimmie2('shimmie2'),
+  kvs('kvs'),
   hydrus('hydrus'),
   zerochan('zerochan'),
   rule34('rule34'),

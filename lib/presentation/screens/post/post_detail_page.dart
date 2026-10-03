@@ -4,7 +4,7 @@ import 'package:boorunova/presentation/l10n/app_strings.dart';
 import 'package:boorunova/presentation/provider/booru/page_state.dart';
 import 'package:boorunova/presentation/provider/tags_blocker_state.dart';
 import 'package:boorunova/presentation/widgets/common/rating_badge.dart';
-import 'package:boorunova/presentation/widgets/media/video_viewer.dart';
+import 'package:boorunova/presentation/widgets/media/resolved_video.dart';
 import 'package:extended_image/extended_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -188,7 +188,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
             child: SizedBox(
               height: 300,
               child: isVideo
-                  ? VideoViewer(url: imageUrl)
+                  ? ResolvedVideo(post: post)
                   : GestureDetector(
                       onTap: () => _openPostViewer(context),
                       child: ExtendedImage.network(

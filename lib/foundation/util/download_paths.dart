@@ -64,8 +64,18 @@ String extensionOf(String url) {
 /// 会在相册里留下一条无法播放的「图片」，甚至被 MediaStore 拒绝。
 const Set<String> videoExtensions = {'.mp4', '.webm', '.mov', '.mkv', '.m4v'};
 
+/// 流清单扩展名（HLS / DASH）。
+///
+/// 它们**不是文件**而是一份播放列表：直接当文件下载只会得到一个几十字节的
+/// 文本，写进相册也没法播。视频站常只提供这种地址，所以必须显式识别并拒绝
+/// 下载（播放不受影响，播放器原生支持 HLS）。
+const Set<String> streamExtensions = {'.m3u8', '.mpd'};
+
 bool isVideoFile(String url) =>
     videoExtensions.contains(extensionOf(url).toLowerCase());
+
+bool isStreamManifest(String url) =>
+    streamExtensions.contains(extensionOf(url).toLowerCase());
 
 /// 生成唯一且保留扩展名的文件名，以 [postId] 为前缀，避免同名文件互相覆盖。
 ///

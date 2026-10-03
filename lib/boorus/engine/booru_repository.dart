@@ -176,17 +176,22 @@ bool isVideoPost(PostSummary post) =>
 
 /// 单个 URL 的视频判定。
 ///
-/// 扩展名判定之外额外覆盖两类站点惯例：路径含 `/video/` 的直链，
-/// 以及 sample 目录下的 mp4（部分站点把视频抽帧图放在同目录）。
+/// 扩展名判定之外额外覆盖三类站点惯例：路径含 `/video/` 的直链、
+/// sample 目录下的 mp4（部分站点把视频抽帧图放在同目录），
+/// 以及 **HLS / DASH 流**（`.m3u8` / `.mpd`）——视频站（KVS 家族等）
+/// 往往只给流清单，不认这两个扩展名就会把视频帖丢给图片组件渲染，
+/// 表现是永远加载中的破图。
 bool isVideoUrl(String url) => _isVideoUrl(url);
 
 bool _isVideoUrl(String url) {
   if (url.isEmpty) return false;
-  // 先剥掉 query / fragment：图站普遍用 `?token=` 之类做防盗链，
+  // 先剥掉 query / fragment：图站与视频站普遍用 `?token=` 之类做防盗链，
   // 不剥掉的话 `clip.mp4?token=1` 的 endsWith 判定必然落空。
   final bare = url.split('?').first.split('#').first.toLowerCase();
   return bare.endsWith('.mp4') ||
       bare.endsWith('.webm') ||
+      bare.endsWith('.m3u8') ||
+      bare.endsWith('.mpd') ||
       bare.contains('/video/') ||
       (bare.contains('/sample/') && bare.contains('.mp4'));
 }
@@ -200,4 +205,11 @@ abstract class BooruRepository {
   Future<List<String>> fetchTrendingTags({int limit = 20}) async => [];
   Future<List<BooruPool>> fetchPools({int page = 1, int limit = 20}) async =>
       [];
+
+  /// 按需解析帖子的**播放地址**。
+  ///
+  /// 视频站（KVS 家族等）的列表页只给缩略图，真正的 mp4/HLS 地址藏在
+  /// 详情页的播放器配置里，所以只有在用户真的要播时才去解析一次。
+  /// 图片站无需实现，默认返回 null（调用方据此继续用帖子自带的 URL）。
+  Future<String?> resolvePlaybackUrl(String postUrl) async => null;
 }
