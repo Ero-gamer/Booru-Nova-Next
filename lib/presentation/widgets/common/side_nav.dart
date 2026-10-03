@@ -1,5 +1,5 @@
 import 'package:boorunova/presentation/widgets/common/glass.dart';
-import 'package:boorunova/presentation/widgets/common/random_cover_art.dart';
+import 'package:boorunova/presentation/widgets/common/site_artwork.dart';
 import 'package:flutter/material.dart';
 
 /// 一个侧栏菜单项的纯数据描述。
@@ -18,7 +18,7 @@ class SideNavItem {
   final VoidCallback onTap;
 }
 
-/// 液态玻璃侧栏面板：顶部随机图片头图 + 下方一组组「各自独立」的玻璃菜单。
+/// 液态玻璃侧栏面板：顶部站点随机图头图 + 下方一组组「各自独立」的玻璃菜单。
 ///
 /// 「各项独立」是这个组件存在的理由：此前所有菜单项共用抽屉这一块面板，
 /// 每项只有一条 1px 下划线，读起来是一张长列表而不是一层层玻璃。
@@ -30,7 +30,7 @@ class SideNavPanel extends StatelessWidget {
     required this.header,
     required this.groups,
     this.right = false,
-    this.artwork = const RandomCoverArt(),
+    this.artwork = const SiteArtwork(),
   });
 
   /// 头图上的内容。文字/图标需自带浅色，头图背景是暗压过的照片。
@@ -42,7 +42,8 @@ class SideNavPanel extends StatelessWidget {
   /// 是否属于右抽屉：只影响外侧圆角方向。
   final bool right;
 
-  /// 头图底图。默认随机网络图片；测试里注入静态占位以避开真实网络请求。
+  /// 头图底图。默认取当前站点的随机安全图；测试里注入静态占位
+  /// 以避开真实网络请求。
   final Widget artwork;
 
   @override
@@ -79,14 +80,14 @@ class SideNavHeader extends StatelessWidget {
     required this.child,
     this.right = false,
     this.height = 176,
-    this.artwork = const RandomCoverArt(),
+    this.artwork = const SiteArtwork(),
   });
 
   final Widget child;
   final bool right;
   final double height;
 
-  /// 头图底图，默认 [RandomCoverArt]。
+  /// 头图底图，默认 [SiteArtwork]。
   final Widget artwork;
 
   /// 下边缘渐隐占整个头图的比例。内容底边留白必须大于它，否则文字会

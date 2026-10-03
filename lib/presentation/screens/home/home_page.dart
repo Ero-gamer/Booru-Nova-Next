@@ -11,6 +11,7 @@ import 'package:boorunova/presentation/screens/server/booru_site_template.dart';
 import 'package:boorunova/presentation/widgets/common/glass.dart';
 import 'package:boorunova/presentation/widgets/common/server_favicon.dart';
 import 'package:boorunova/presentation/widgets/common/side_nav.dart';
+import 'package:boorunova/presentation/widgets/common/site_artwork.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -232,6 +233,23 @@ class _HomePageState extends ConsumerState<HomePage> {
     context.push(location);
   }
 
+  /// 侧栏头图底图：当前站点的随机安全图，点一下进帖子查看器。
+  ///
+  /// 走 `/post/:id` 而不是详情页：点瀑布流格子和点这里应该是同一个动作
+  /// （都是「打开这张图」，进去之后照样能翻到详情页）。
+  /// 整批候选一起传进去，查看器里就能左右滑着看这一页随机图。
+  Widget _artwork(BuildContext context) {
+    return SiteArtwork(
+      onTap: (posts, index) {
+        Navigator.pop(context);
+        context.push(
+          '/post/${posts[index].id}',
+          extra: <String, dynamic>{'posts': posts, 'initialIndex': index},
+        );
+      },
+    );
+  }
+
   /// 左抽屉头图：品牌图标 + 应用名，白字压在随机头图的深色压暗层上。
   Widget _brandHeader(BuildContext context) {
     return Column(
@@ -314,6 +332,7 @@ class _HomePageState extends ConsumerState<HomePage> {
         child: GlassDrawer(
           child: SideNavPanel(
             header: _brandHeader(context),
+            artwork: _artwork(context),
             groups: [
               [
                 SideNavItem(
@@ -364,6 +383,7 @@ class _HomePageState extends ConsumerState<HomePage> {
           child: SideNavPanel(
             right: true,
             header: _serverHeader(context),
+            artwork: _artwork(context),
             groups: [
               [
                 SideNavItem(

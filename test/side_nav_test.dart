@@ -13,8 +13,8 @@ class _TestSettings extends SettingsNotifier {
 
 /// 侧栏面板的测试外壳。
 ///
-/// 头图底图固定注入纯色块：默认的 [RandomCoverArt] 会真的发网络请求，
-/// 测试里必然失败并触发换源重试，断言会变成跟网络时序赛跑。
+/// 头图底图固定注入纯色块：默认的 [SiteArtwork] 会去打当前站点的接口，
+/// 而这里既没有站点也不该发请求，断言会变成跟网络时序赛跑。
 Widget _harness(List<List<SideNavItem>> groups) {
   return ProviderScope(
     overrides: [settingsProvider.overrideWith(_TestSettings.new)],
