@@ -21,7 +21,7 @@ English / [简体中文](README_cn.md)
 
 ### 📲 Try it now
 
-**Latest: [v1.8.0](https://github.com/qingzhuo-cn/boorunova/releases/latest)** — Android 8.0+
+**Latest: [v1.8.1](https://github.com/qingzhuo-cn/boorunova/releases/latest)** — Android 8.0+
 
 Most phones want the **arm64** build (19 MB). Use the **universal** one only if
 you're on an emulator or a rare x86_64 device.
