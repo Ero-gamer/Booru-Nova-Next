@@ -206,10 +206,13 @@ abstract class BooruRepository {
   Future<List<BooruPool>> fetchPools({int page = 1, int limit = 20}) async =>
       [];
 
-  /// 按需解析帖子的**播放地址**。
+  /// 按需解析帖子的**媒体地址**（原图 / 播放直链）。
   ///
-  /// 视频站（KVS 家族等）的列表页只给缩略图，真正的 mp4/HLS 地址藏在
-  /// 详情页的播放器配置里，所以只有在用户真的要播时才去解析一次。
+  /// 两类站点需要它：
+  /// - 视频站（KVS 家族等）：列表页只有缩略图，mp4/HLS 地址藏在详情页的
+  ///   播放器配置里；
+  /// - paheal 系图站：列表页给的是无扩展名的缩略图，原图只在详情页的
+  ///   `og:image` 里。
   /// 图片站无需实现，默认返回 null（调用方据此继续用帖子自带的 URL）。
-  Future<String?> resolvePlaybackUrl(String postUrl) async => null;
+  Future<String?> resolveMediaUrl(String postUrl) async => null;
 }

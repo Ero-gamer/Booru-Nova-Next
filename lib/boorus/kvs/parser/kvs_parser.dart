@@ -31,29 +31,35 @@ class KvsParser {
     final posts = <BooruPost>[];
     final seen = <String>{};
 
-    // 视频链接：KVS 的详情页固定形如 /videos/<数字 id>/<slug>/
+    // 剥掉 script/style 再扫：视频站的页面里同样嵌着 JS 模板，
+    // 其中的链接与未闭合标签会被正则误当成条目。
+    final body = html
+        .replaceAll(RegExp(r'<script[\s\S]*?</script>', caseSensitive: false), '')
+        .replaceAll(RegExp(r'<style[\s\S]*?</style>', caseSensitive: false), '');
+
+    // 视频链接：KVS 的详情页固定形如 /video/<数字 id>/<slug>/（单数）
     final linkPattern = RegExp(
       r'''<a[^>]+href=["']([^"']*?/videos?/(\d+)/[^"']*)["'][^>]*>(.*?)</a>''',
       dotAll: true,
       caseSensitive: false,
     );
 
-    for (final match in linkPattern.allMatches(html)) {
+    for (final match in linkPattern.allMatches(body)) {
       if (posts.length >= limit) break;
       final href = match.group(1) ?? '';
       final id = match.group(2) ?? '';
       final inner = match.group(3) ?? '';
       if (id.isEmpty || !seen.add(id)) continue;
 
-      // 缩略图：缩略图常见于内层 img，也可能挂在 a 的 data-* 上
+      // 缩略图：`src` 常是 base64 占位符，真地址在 data-original / data-webp；
+      // 也可能挂在链接之后（往后取一小段窗口兜底）。
       final thumb = _firstMediaUrl(inner) ??
           _firstMediaUrl(match.group(0) ?? '') ??
-          // 有的主题把 img 放在链接之后：往后取一小段窗口兜底
-          _firstMediaUrl(_window(html, match.end));
+          _firstMediaUrl(_window(body, match.end));
       if (thumb == null) continue;
 
       final title = _attr(match.group(0) ?? '', 'title') ?? '';
-      final duration = _durationNear(html, match.end);
+      final duration = _durationNear(body, match.end);
       final slug = href.split('/').where((s) => s.isNotEmpty).last;
 
       posts.add(BooruPost(
@@ -175,18 +181,32 @@ class KvsParser {
   }
 
   static String? _bestMediaUrl(String html) {
-    // 优先 mp4，其次 m3u8/mpd
-    final mp4 = RegExp(r'''https?://[^"'\s\\]+?\.(?:mp4|webm)(?:\?[^"'\s\\]*)?''',
-            caseSensitive: false)
-        .firstMatch(html)
-        ?.group(0);
-    if (mp4 != null) return mp4.replaceAll(r'\/', '/');
-    final stream =
-        RegExp(r'''https?://[^"'\s\\]+?\.(?:m3u8|mpd)(?:\?[^"'\s\\]*)?''',
-                caseSensitive: false)
-            .firstMatch(html)
-            ?.group(0);
-    return stream?.replaceAll(r'\/', '/');
+    // 实测 rule34video 的详情页里 `_preview.mp4` 出现 25 次（悬停预览小片），
+    // `/get_file/` 出现 33 次（正片）。若不做区分，兜底会取到预览小片——
+    // 用户点开看到的是几秒钟的静音预览。
+    final candidates = RegExp(
+      r'''https?://[^"'\s\\]+?\.(?:mp4|webm|m3u8|mpd)(?:\?[^"'\s\\]*)?''',
+      caseSensitive: false,
+    )
+        .allMatches(html)
+        .map((m) => m.group(0)!.replaceAll(r'\/', '/'))
+        .where((url) =>
+            !url.toLowerCase().contains('_preview.') &&
+            !url.toLowerCase().contains('/preview.'))
+        .toList();
+    if (candidates.isEmpty) return null;
+
+    // 正片优先：KVS 的真实媒体走 /get_file/；再看 mp4 优先于流清单
+    int score(String url) {
+      final lower = url.toLowerCase();
+      var value = 0;
+      if (lower.contains('/get_file/')) value += 4;
+      if (lower.contains('.mp4')) value += 2;
+      return value;
+    }
+
+    candidates.sort((a, b) => score(b).compareTo(score(a)));
+    return candidates.first;
   }
 
   static String? _firstMediaUrl(String html) {
@@ -214,8 +234,11 @@ class KvsParser {
   }
 
   static String? _attr(String tag, String name) {
-    final match = RegExp('$name=["\'](.*?)["\']', caseSensitive: false)
-        .firstMatch(tag);
+    // [\s\S] 而非 `.`：属性值可能跨行（标题很长时会被换行折行）
+    final match = RegExp(
+      '$name\\s*=\\s*["\']([\\s\\S]*?)["\']',
+      caseSensitive: false,
+    ).firstMatch(tag);
     return match?.group(1)?.trim();
   }
 
@@ -242,6 +265,9 @@ class KvsParser {
 
   static String _absolute(String url, String baseUrl) {
     if (url.isEmpty) return '';
+    // 协议相对（`//host/path`）在真实页面里很常见，先补齐 scheme，
+    // 否则会被当成站内路径拼成 `https://site//host/path`。
+    if (url.startsWith('//')) return 'https:$url';
     if (url.startsWith('http')) return url;
     final base = baseUrl.endsWith('/')
         ? baseUrl.substring(0, baseUrl.length - 1)

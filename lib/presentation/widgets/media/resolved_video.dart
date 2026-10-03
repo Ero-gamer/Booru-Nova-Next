@@ -50,7 +50,7 @@ class _ResolvedVideoState extends ConsumerState<ResolvedVideo> {
       _error = null;
     });
     try {
-      final url = await repo.resolvePlaybackUrl(pageUrl);
+      final url = await repo.resolveMediaUrl(pageUrl);
       if (!mounted) return;
       setState(() {
         _loading = false;

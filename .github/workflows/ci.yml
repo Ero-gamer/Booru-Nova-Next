@@ -5,6 +5,11 @@ on:
     branches: [main]
   pull_request:
 
+# 同分支的新推送取消旧的运行：CI 只关心最新一次的结果
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 # 只做静态检查与单测：证书、密钥、发布都不在这里，PR 无法触碰发布链。
 jobs:
   analyze-and-test:
@@ -30,13 +35,29 @@ jobs:
       - name: Test
         run: flutter test
 
-      - name: 断言合并清单（权限与备份策略不被插件悄悄改写）
+      - name: 构建 debug APK（用于校验装机清单）
+        # Gradle 走仓库里的 wrapper（android/gradlew + wrapper.jar 已入库），
+        # 这样 CI 用的 Gradle 版本与本机一致。
+        run: flutter build apk --debug --target-platform android-arm64
+
+      - name: 校验装机清单（权限与备份策略）
+        # 断言对象是**打包进 APK 的清单**，不是中间产物：此前用
+        # `find ... | head -1` 可能选中某个插件的合并清单，导致断言在正确
+        # 代码上失败（也曾在错误代码上通过）。
         run: |
-          flutter build apk --debug --target-platform android-arm64
-          MERGED=$(find build/app/intermediates/merged_manifests -name AndroidManifest.xml | head -n1)
-          echo "merged manifest: $MERGED"
-          grep -q 'android:allowBackup="false"' "$MERGED"
-          ! grep -q 'REQUEST_INSTALL_PACKAGES' "$MERGED"
-          ! grep -q 'POST_NOTIFICATIONS' "$MERGED"
-          grep -q 'READ_EXTERNAL_STORAGE' "$MERGED"
-          grep -A2 'READ_EXTERNAL_STORAGE' "$MERGED" | grep -q 'maxSdkVersion="32"'
+          set -euo pipefail
+          APK=build/app/outputs/flutter-apk/app-debug.apk
+          test -f "$APK"
+          AAPT2=$(ls -d "${ANDROID_HOME}"/build-tools/*/aapt2 2>/dev/null | sort -V | tail -n1)
+          echo "使用 aapt2: $AAPT2"
+          "$AAPT2" dump xmltree "$APK" --file AndroidManifest.xml > /tmp/manifest.txt
+          cat /tmp/manifest.txt
+
+          # 自动备份必须关闭（凭据明文存在 servers box 里）
+          grep -q 'allowBackup(0x01010280)=false' /tmp/manifest.txt
+          # 两个高风险冗余权限必须不在
+          ! grep -q 'REQUEST_INSTALL_PACKAGES' /tmp/manifest.txt
+          ! grep -q 'POST_NOTIFICATIONS' /tmp/manifest.txt
+          # READ_EXTERNAL_STORAGE 必须带 maxSdkVersion（不再由插件决定）
+          grep -q 'READ_EXTERNAL_STORAGE' /tmp/manifest.txt
+          grep -A2 'READ_EXTERNAL_STORAGE' /tmp/manifest.txt | grep -q 'maxSdkVersion'

@@ -1,8 +1,11 @@
-gradle-wrapper.jar
+# Gradle wrapper 必须入库：它是构建可复现性的一部分。
+#
+# 默认的 Flutter 模板忽略 gradlew / gradle-wrapper.jar，本机没事（文件就在
+# 磁盘上），但 CI 检出后没有 wrapper，Flutter 会退回用 runner 自带的 Gradle
+# ——版本与 android/gradle/wrapper/gradle-wrapper.properties 锁定的 8.7 不同，
+# 插件求值随即失败（实测报错：":gal ... compileSdkVersion is not specified"）。
 /.gradle
 /captures/
-/gradlew
-/gradlew.bat
 /local.properties
 GeneratedPluginRegistrant.java
 

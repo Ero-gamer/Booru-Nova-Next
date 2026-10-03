@@ -12,7 +12,7 @@ class _FakeRepo implements BooruRepository {
   final String serverId;
 
   @override
-  Future<String?> resolvePlaybackUrl(String postUrl) async => null;
+  Future<String?> resolveMediaUrl(String postUrl) async => null;
 
   int suggestCalls = 0;
   final List<String> suggestQueries = [];

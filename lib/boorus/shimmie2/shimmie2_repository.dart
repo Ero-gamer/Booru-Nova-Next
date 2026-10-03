@@ -7,28 +7,38 @@ import 'package:dio/dio.dart';
 
 /// Shimmie2 / paheal 系图站仓库（rule34.paheal.net、allgirls.paheal.net 等）。
 ///
-/// 这一族与 gelbooru DAPI 完全不同，也与 shimmie2 官方新版不同——paheal 是很
-/// 早的分支，现实里能用的是**图库 HTML 页面**：
-///   `/post/list/<tags>/<page>`
-/// 因此这里两条路都试：先试新版 Shimmie 的 JSON 接口（官方 2.11+ 有
-/// `/api/post/list`），拿到 JSON 就按 JSON 解；否则退回 HTML 解析。
+/// 实测 paheal（2026-10）的接口现实：
+/// - 新版 `/api/post/list` → **404**（这是很早的分支），所以只探一次并记住结果，
+///   免得每次搜索都白打一个请求；
+/// - 列表用**查询参数**：`/post/list?tags=<标签>&page=<页>` → 200
+///   （路径式的 `/post/list/all/1` 是 404）；
+/// - 无标签时 `/post/list/<页>` → 200；
+/// - 详情页没有 `<img id="image">`，原图只在 `<meta property="og:image">` 里。
 class Shimmie2Repository extends BaseBooruRepository {
   Shimmie2Repository({
     required super.dio,
     required super.serverId,
   });
 
+  /// JSON 接口可用性。null = 还没探过。实测 paheal 为 false。
+  bool? _jsonApiAvailable;
+
   @override
   Future<BooruPageResult> searchPosts(BooruQuery query) async {
-    // 先试 JSON 接口：有就是结构化的，省掉解析 HTML 的脆弱性
-    final json = await _tryJsonApi(query);
-    if (json != null) return json;
+    // 只探一次：paheal 上这个端点恒 404，每次搜索都试等于白花一次往返
+    _jsonApiAvailable ??= await _probeJsonApi();
+    if (_jsonApiAvailable ?? false) {
+      final viaJson = await _searchViaJson(query);
+      if (viaJson != null) return viaJson;
+      _jsonApiAvailable = false;
+    }
 
-    // 退回 HTML 图库页
     final tags = _encodeTags(query.tags);
+    // 实测：带标签必须用查询参数（路径式会 404）；不带标签用路径式页号
     final path = tags.isEmpty
         ? '/post/list/${query.page}'
-        : '/post/list/$tags/${query.page}';
+        : '/post/list?tags=$tags&page=${query.page}';
+
     final response = await dio.get(
       path,
       options: Options(responseType: ResponseType.plain),
@@ -49,8 +59,25 @@ class Shimmie2Repository extends BaseBooruRepository {
     );
   }
 
-  /// 新版 Shimmie 的 JSON 接口。失败/不存在时返回 null，由调用方退回 HTML。
-  Future<BooruPageResult?> _tryJsonApi(BooruQuery query) async {
+  /// 探一次新版 JSON 接口是否存在。
+  Future<bool> _probeJsonApi() async {
+    try {
+      final response = await dio.get(
+        '/api/post/list',
+        queryParameters: {'limit': 1, 'page': 1},
+        options: Options(responseType: ResponseType.plain),
+      );
+      final data = response.data;
+      if (data is! String) return false;
+      final trimmed = data.trimLeft();
+      if (trimmed.startsWith('<')) return false;
+      return jsonDecode(trimmed) != null;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<BooruPageResult?> _searchViaJson(BooruQuery query) async {
     try {
       final response = await dio.get(
         '/api/post/list',
@@ -62,9 +89,8 @@ class Shimmie2Repository extends BaseBooruRepository {
         options: Options(responseType: ResponseType.plain),
       );
       final data = response.data;
-      if (data is! String || data.trimLeft().startsWith('<')) return null;
-      final decoded = jsonDecode(data);
-      final posts = Shimmie2Parser.parseJson(serverId, decoded);
+      if (data is! String) return null;
+      final posts = Shimmie2Parser.parseJson(serverId, jsonDecode(data));
       if (posts.isEmpty) return null;
       return BooruPageResult(
         posts: posts.map((p) => p.toSummary(serverId)).toList(),
@@ -75,11 +101,26 @@ class Shimmie2Repository extends BaseBooruRepository {
     }
   }
 
+  /// paheal 没有标签建议接口（`/tags` 是 HTML 页面）。老实的空实现：
+  /// UI 会显示「无建议」，好过猜一个不存在的端点然后每次搜索都报错。
   @override
-  Future<List<String>> suggestTags(String query, {int limit = 10}) async {
-    // Shimmie2 的标签接口同样是 HTML（/tags）；标签建议对本族站点意义有限，
-    // 与其猜一个可能不存在的端点，不如老实返回空——UI 会显示"无建议"。
-    return [];
+  Future<List<String>> suggestTags(String query, {int limit = 10}) async => [];
+
+  /// 详情页原图：只有 og:image 可用（实测）。列表页给的是缩略图。
+  @override
+  Future<String?> resolveMediaUrl(String postUrl) async {
+    if (postUrl.isEmpty) return null;
+    try {
+      final response = await dio.get(
+        postUrl,
+        options: Options(responseType: ResponseType.plain),
+      );
+      final html = response.data;
+      if (html is! String || html.isEmpty) return null;
+      return Shimmie2Parser.parsePostImage(html, dio.options.baseUrl);
+    } catch (_) {
+      return null;
+    }
   }
 
   String _encodeTags(String tags) => tags
