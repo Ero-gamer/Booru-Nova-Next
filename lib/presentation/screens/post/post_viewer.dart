@@ -6,6 +6,7 @@ import 'package:boorunova/data/repository/history/user_history_repo.dart';
 import 'package:boorunova/foundation/util/image_downloader.dart';
 import 'package:boorunova/presentation/l10n/app_strings.dart';
 import 'package:boorunova/presentation/provider/app_settings.dart';
+import 'package:boorunova/presentation/provider/booru/page_state.dart';
 import 'package:boorunova/presentation/provider/download_progress.dart';
 import 'package:boorunova/presentation/widgets/common/glass.dart';
 import 'package:boorunova/presentation/widgets/media/resolved_video.dart';
@@ -386,11 +387,13 @@ class _PostViewerState extends ConsumerState<PostViewer>
   Future<void> _download(PostSummary post) async {
     final settings = ref.read(settingsProvider);
     // 进度图标查的是同一个 downloadUrlOf，两者天然对齐。
-    final url = downloadUrlOf(
+    // 视频站/paheal 系的帖子要先解析真实地址，否则会下到缩略图。
+    final url = await resolveDownloadUrl(
       post,
+      ref.read(booruPageStateProvider.notifier).repository,
       preferSample: settings.downloadQuality == 'sample',
     );
-    if (url.isEmpty) return;
+    if (url.isEmpty || !mounted) return;
 
     final progressNotifier = ref.read(downloadProgressProvider.notifier);
     progressNotifier.start(url, post.id);

@@ -55,7 +55,12 @@ Future<Directory> defaultDownloadDir() async {
 /// FileNotFoundException → 用户看到"下载失败"，而文件其实已经躺在磁盘上」。
 String extensionOf(String url) {
   final raw = url.split('?').first.split('#').first;
-  final base = raw.split('/').last;
+  // 取**最后一个非空**路径段：视频站的媒体地址常以斜杠收尾
+  // （实测 `…/…_720p.mp4/?v-acctoken=…`），只看最后一段会得到空串，
+  // 于是守卫判定"没有扩展名"直接拒绝下载，而其实地址里明明有 .mp4。
+  final segments = raw.split('/').where((s) => s.isNotEmpty).toList();
+  if (segments.isEmpty) return '';
+  final base = segments.last;
   final dot = base.lastIndexOf('.');
   return dot > 0 ? base.substring(dot) : '';
 }
@@ -87,9 +92,12 @@ String uniqueFileName(
   String? postId,
   String? namespace,
 }) {
-  // 只取路径最后一段，剥掉 query / fragment
+  // 只取路径最后一段，剥掉 query / fragment。
+  // 用**最后一个非空**段，与 extensionOf 同一口径：媒体地址尾随斜杠
+  // （`…_720p.mp4/`）时若只看最后一段，会得到空主体 → 文件名叫 `.mp4`。
   final raw = url.split('?').first.split('#').first;
-  final base = raw.split('/').last;
+  final segments = raw.split('/').where((s) => s.isNotEmpty).toList();
+  final base = segments.isEmpty ? '' : segments.last;
   final ext = extensionOf(url);
   final stem = ext.isEmpty || !base.endsWith(ext)
       ? base

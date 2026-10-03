@@ -330,12 +330,16 @@ class _HomeContentState extends ConsumerState<HomeContent> {
     // 设置为 sample 时批量也只取 sample，否则用户设了省流量却被
     // 静默地按原图批量下载。
     final settings = ref.read(settingsProvider);
-    final urls = selected
-        .map((p) => downloadUrlOf(
-              p,
-              preferSample: settings.downloadQuality == 'sample',
-            ))
-        .toList();
+    final repository = ref.read(booruPageStateProvider.notifier).repository;
+    // 需要按需解析的帖子（视频站）先解析，否则批量下到的是一批缩略图
+    final urls = <String>[];
+    for (final p in selected) {
+      urls.add(await resolveDownloadUrl(
+        p,
+        repository,
+        preferSample: settings.downloadQuality == 'sample',
+      ));
+    }
     final ids = selected.map((p) => p.id).toList();
     final namespaces = selected.map((p) => p.serverId).toList();
 

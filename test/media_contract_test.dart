@@ -10,6 +10,43 @@ import 'package:flutter_test/flutter_test.dart';
 /// 这两件事是「视频站能进软件」的地基：HLS 地址不被当成视频，视频帖就会被
 /// 丢给图片组件渲染（永远加载中的破图）；评级不归一，详情页会显示
 /// "SENSITIVE"、徽章变灰。
+/// 只用于下载地址解析测试的最小仓库替身。
+class _FakeResolveRepo implements BooruRepository {
+  _FakeResolveRepo({
+    required this.mediaUrl,
+    this.serverId = 'kvs',
+    this.onCall,
+  });
+
+  final String? mediaUrl;
+  @override
+  final String serverId;
+  final void Function()? onCall;
+
+  @override
+  Future<String?> resolveMediaUrl(String postUrl) async {
+    onCall?.call();
+    return mediaUrl;
+  }
+
+  @override
+  Map<String, String> get mediaHeaders => const {};
+
+  @override
+  Future<BooruPageResult> searchPosts(BooruQuery query) async =>
+      const BooruPageResult(posts: [], hasMore: false);
+
+  @override
+  Future<List<String>> suggestTags(String query, {int limit = 10}) async => [];
+
+  @override
+  Future<List<String>> fetchTrendingTags({int limit = 20}) async => [];
+
+  @override
+  Future<List<BooruPool>> fetchPools({int page = 1, int limit = 20}) async =>
+      [];
+}
+
 void main() {
   group('视频判定 (isVideoUrl)', () {
     test('直链与流清单都算视频', () {
@@ -170,6 +207,82 @@ void main() {
       // 正常 URL 仍保留扩展名与 postId 前缀
       expect(uniqueFileName('https://x/i/a.jpg?v=1', postId: '42'),
           '42_a.jpg');
+    });
+  });
+
+  group('视频站下载地址', () {
+    const videoPost = PostSummary(
+      id: '1111111',
+      serverId: 'kvs',
+      thumbnailUrl: 'https://site/contents/1/320x180/1.jpg',
+      sampleUrl: '',
+      originalUrl: '',
+      tags: [],
+      aspectRatio: 16 / 9,
+      width: 0,
+      height: 0,
+      rating: 'e',
+      score: 0,
+      postUrl: 'https://site/video/1111111/x/',
+      isVideo: true,
+    );
+
+    test('媒体地址尾随斜杠时仍能认出扩展名（否则会被守卫拒下）', () {
+      // 实测形态：`…/…_720p.mp4/?v-acctoken=…`
+      expect(
+        extensionOf('https://s/get_file/51/h/1/1/1_720p.mp4/?v-acctoken=abc'),
+        '.mp4',
+      );
+      expect(
+        isVideoFile('https://s/get_file/51/h/1/1/1_720p.mp4/?v-acctoken=abc'),
+        isTrue,
+      );
+      expect(uniqueFileName('https://s/get_file/51/h/1/1/1_720p.mp4/?t=1'),
+          '1_720p.mp4');
+    });
+
+    test('视频站帖子的下载地址要先解析：直接取会下到缩略图', () async {
+      // 不用解析的对照：图片站帖子，仓库不该被调用
+      var calls = 0;
+      final repo = _FakeResolveRepo(
+        mediaUrl: 'https://s/get_file/1/a/v_720p.mp4/?token=t',
+        onCall: () => calls++,
+      );
+      const imagePost = PostSummary(
+        id: '2',
+        serverId: 'other',
+        thumbnailUrl: 'https://x/t.jpg',
+        sampleUrl: 'https://x/s.jpg',
+        originalUrl: 'https://x/o.jpg',
+        tags: [],
+        aspectRatio: 1,
+        width: 1,
+        height: 1,
+        rating: 'q',
+        score: 0,
+      );
+      expect(await resolveDownloadUrl(imagePost, repo), 'https://x/s.jpg');
+      expect(calls, 0, reason: '图片站零开销，不该发解析请求');
+
+      // 视频站帖子：解析出真实地址
+      expect(
+        await resolveDownloadUrl(videoPost, repo),
+        'https://s/get_file/1/a/v_720p.mp4/?token=t',
+      );
+
+      // 解析失败时退回原地址（至少不崩）
+      final failing = _FakeResolveRepo(mediaUrl: null);
+      expect(await resolveDownloadUrl(videoPost, failing),
+          videoPost.thumbnailUrl);
+
+      // 站点不匹配时不做解析，避免拿别的站点去抓
+      final mismatch = _FakeResolveRepo(
+        mediaUrl: 'https://s/x.mp4',
+        serverId: 'another',
+      );
+      expect(await resolveDownloadUrl(videoPost, mismatch),
+          videoPost.thumbnailUrl);
+      expect(await resolveDownloadUrl(videoPost, null), videoPost.thumbnailUrl);
     });
   });
 

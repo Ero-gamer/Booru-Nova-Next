@@ -163,6 +163,37 @@ String downloadUrlOf(PostSummary post, {bool preferSample = false}) {
   return mediaUrlOf(post);
 }
 
+/// 下载前先补齐"需要按需解析"的地址。
+///
+/// 视频站帖子的三个地址里**没有**媒体地址（列表页只给缩略图），直接用
+/// [downloadUrlOf] 会下到一张缩略图 jpg；paheal 系同理（列表只有缩略图）。
+/// 这里在下载前解析一次真实地址，解析不到才退回原来的地址。
+///
+/// 图片站零开销：自带 original/sample 的帖子直接返回，连仓库都不碰。
+Future<String> resolveDownloadUrl(
+  PostSummary post,
+  BooruRepository? repository, {
+  bool preferSample = false,
+}) async {
+  final direct = downloadUrlOf(post, preferSample: preferSample);
+  final needsResolve =
+      post.isVideo && post.originalUrl.isEmpty && post.sampleUrl.isEmpty;
+  if (!needsResolve) return direct;
+
+  final pageUrl = permalinkOf(post);
+  if (repository == null || pageUrl.isEmpty) return direct;
+  // 站点必须对得上：拿另一个站点的仓库去解析只会得到 404 或垃圾
+  if (post.serverId.isNotEmpty && repository.serverId != post.serverId) {
+    return direct;
+  }
+  try {
+    final resolved = await repository.resolveMediaUrl(pageUrl);
+    return (resolved == null || resolved.isEmpty) ? direct : resolved;
+  } catch (_) {
+    return direct;
+  }
+}
+
 /// 站点帖子页链接：分享、跳转详情、打开浏览器共用。
 ///
 /// 此前这四处各写一遍 `post.postUrl ?? post.originalUrl`。解析器统一
