@@ -151,10 +151,17 @@ flutter run
 ### 构建 Release 包
 
 ```bash
-flutter build apk --release
+flutter build apk --release --target-platform android-arm64,android-x64
 ```
 
-产物位于 `build/app/outputs/flutter-apk/app-release.apk`。
+`--target-platform` 不能省：不加会把 armeabi-v7a 一起打进通用包，体积从 ~38 MB 涨到 ~56 MB，
+与上面的下载表对不上。
+
+产物：`build/app/outputs/flutter-apk/app-arm64-v8a-release.apk`（arm64）与
+`build/app/outputs/flutter-apk/app-release.apk`（通用包）。
+
+签名需要 `android/key.properties` + `android/release.jks`；缺了会**故意构建失败**，
+而不是悄悄发出一个 debug 签名的包——详见 [docs/RELEASING.md](docs/RELEASING.md)。
 
 ## 使用说明
 

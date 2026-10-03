@@ -37,5 +37,6 @@ key.properties
 .pub-cache/
 # DeepSeek Harness 本地会话与存储目录
 .dsh/
-pubspec.lock
+# pubspec.lock 必须入库：这是应用而非库，锁文件决定 CI 与本机装的是同一批依赖。
+# 此前被忽略，意味着同一个 tag 在不同机器上可能构建出行为不同的 APK。
 android/local.properties

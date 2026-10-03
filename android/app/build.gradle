@@ -12,19 +12,31 @@ if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
 }
 
+// 「有没有可用的正式签名」的唯一判据。所有签名决策都走这个布尔量，
+// 不再各处 `containsKey('keyAlias')` 各判一次。
+def hasReleaseKeystore = keystoreProperties.containsKey('keyAlias') &&
+        keystoreProperties.containsKey('storeFile')
+
 def flutterRoot = localProperties.getProperty('flutter.sdk')
 if (flutterRoot == null) {
     throw new GradleException("Flutter SDK not found. Define location with flutter.sdk in the local.properties file.")
 }
 
+// 版本号只有一个真相来源：pubspec.yaml（flutter 工具在每次构建前把它写进
+// local.properties）。这里不再回落到 '1'/'1.0'——回落会让版本号静默变成
+// 1.0（对 Gradle 直呼、local.properties 陈旧或手改过的场景），而 versionCode
+// 只增不减是 Android 的硬约束，写错一次就发不出去。
 def flutterVersionCode = localProperties.getProperty('flutter.versionCode')
-if (flutterVersionCode == null) {
-    flutterVersionCode = '1'
+if (flutterVersionCode == null || flutterVersionCode.trim() == '') {
+    throw new GradleException(
+        "缺少 flutter.versionCode：请用 `flutter build` 触发构建（版本号取自 pubspec.yaml），" +
+        "不要直接调用 gradle。")
 }
 
 def flutterVersionName = localProperties.getProperty('flutter.versionName')
-if (flutterVersionName == null) {
-    flutterVersionName = '1.0'
+if (flutterVersionName == null || flutterVersionName.trim() == '') {
+    throw new GradleException(
+        "缺少 flutter.versionName：请用 `flutter build` 触发构建（版本号取自 pubspec.yaml）。")
 }
 
 apply plugin: 'com.android.application'
@@ -90,22 +102,42 @@ android {
 
     buildTypes {
         debug {
-            if (keystoreProperties.containsKey('keyAlias')) {
+            if (hasReleaseKeystore) {
                signingConfig signingConfigs.release
             }
         }
         profile {
-            if (keystoreProperties.containsKey('keyAlias')) {
+            if (hasReleaseKeystore) {
                signingConfig signingConfigs.release
             }
         }
         release {
-            if (keystoreProperties.containsKey('keyAlias')) {
-               signingConfig signingConfigs.release
+            // 缺 key.properties 时**不再静默降级**：此前 release 分支只是
+            // `if (有密钥) 用正式签名`，条件为假就悄悄用 debug 签名出包，
+            // 老用户升级会直接 INSTALL_FAILED_UPDATE_INCOMPATIBLE。
+            // 现在由下面的 taskGraph 守卫在构建 release 时硬失败。
+            if (hasReleaseKeystore) {
+                signingConfig signingConfigs.release
             }
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+// 只在真的要构建 release 产物时才校验签名密钥：debug 构建不需要 keystore，
+// 不该被这条守卫挡住。放在 taskGraph 里而不是配置期 throw，就是为了这个区分。
+gradle.taskGraph.whenReady { graph ->
+    if (!hasReleaseKeystore) {
+        def releaseTasks = graph.allTasks.findAll {
+            it.name.toLowerCase().contains('release')
+        }
+        if (!releaseTasks.isEmpty()) {
+            throw new GradleException(
+                "缺少 android/key.properties（或其中的 keyAlias/storeFile）：" +
+                "拒绝产出 debug 签名的 release 包。请先恢复正式密钥与 key.properties，" +
+                "见 docs/RELEASING.md。")
         }
     }
 }

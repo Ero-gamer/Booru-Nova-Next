@@ -1,11 +1,17 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.boorunova.app">
     <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <!-- READ 的 maxSdkVersion 显式写死 32：此前本文件不写，合并时由 file_picker
+         的清单把上限拔到 32（见 build/.../manifest-merger-release-report.txt），
+         源码里看到的权限和装机权限不一致。写死是为了让源码即事实。 -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="29" />
-    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- REQUEST_INSTALL_PACKAGES / POST_NOTIFICATIONS 已删除：全项目 0 处调用
+         （无应用内更新、无通知），属于高风险冗余权限——前者会被商店人工复核，
+         还留下静默装包的攻击面。要恢复功能请连同实现一起加回来。 -->
 
     <queries>
         <intent>
@@ -22,7 +28,14 @@
         android:label="BooruNova"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
         android:requestLegacyExternalStorage="true">
+        <!-- allowBackup=false + 两份排除规则：servers box 里存的是 apiKey/login
+             明文（server.dart:29-30），默认 allowBackup=true 会让它们随系统
+             自动备份进 Google 云，与 README「数据全部留在本地…不上传」矛盾。
+             Android 12+ 的 D2D 迁移不吃 allowBackup，必须用 dataExtractionRules。 -->
         <activity
             android:name=".MainActivity"
             android:exported="true"

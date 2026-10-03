@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# 只做静态检查与单测：证书、密钥、发布都不在这里，PR 无法触碰发布链。
+jobs:
+  analyze-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Flutter 版本写死：.metadata 里记录的 revision 与本机不一致，
+      # 不固定版本会让「本机能过、CI 不过」变成日常。
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.24.0
+          channel: stable
+          cache: true
+
+      - name: Pub get
+        run: flutter pub get
+
+      - name: Analyze
+        # --fatal-infos：让 info 级问题也拦下来，否则 lint 只是装饰
+        run: flutter analyze --fatal-infos
+
+      - name: Test
+        run: flutter test
+
+      - name: 断言合并清单（权限与备份策略不被插件悄悄改写）
+        run: |
+          flutter build apk --debug --target-platform android-arm64
+          MERGED=$(find build/app/intermediates/merged_manifests -name AndroidManifest.xml | head -n1)
+          echo "merged manifest: $MERGED"
+          grep -q 'android:allowBackup="false"' "$MERGED"
+          ! grep -q 'REQUEST_INSTALL_PACKAGES' "$MERGED"
+          ! grep -q 'POST_NOTIFICATIONS' "$MERGED"
+          grep -q 'READ_EXTERNAL_STORAGE' "$MERGED"
+          grep -A2 'READ_EXTERNAL_STORAGE' "$MERGED" | grep -q 'maxSdkVersion="32"'

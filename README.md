@@ -156,10 +156,18 @@ flutter run
 ### Build a release APK
 
 ```bash
-flutter build apk --release
+flutter build apk --release --target-platform android-arm64,android-x64
 ```
 
-Output lands at `build/app/outputs/flutter-apk/app-release.apk`.
+`--target-platform` is required: without it the universal APK also packs
+armeabi-v7a and grows from ~38 MB to ~56 MB, contradicting the download table above.
+
+Outputs: `build/app/outputs/flutter-apk/app-arm64-v8a-release.apk` (arm64) and
+`build/app/outputs/flutter-apk/app-release.apk` (universal).
+
+Signing needs `android/key.properties` + `android/release.jks`. Without them the
+release build **fails on purpose** instead of silently shipping a debug-signed APK —
+see [docs/RELEASING.md](docs/RELEASING.md).
 
 ## Usage
 

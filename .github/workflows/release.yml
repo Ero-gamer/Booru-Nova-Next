@@ -1,0 +1,83 @@
+name: Release
+
+# tag 触发：v1.8.2 这样的 tag 推上去即产出并上传安装包。
+# 手工发布容易漏掉 --target-platform 与签名校验，这里固化成流程。
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.24.0
+          channel: stable
+          cache: true
+
+      - name: 还原签名密钥
+        # 三个 Secret：KEYSTORE_BASE64 / KEYSTORE_PASSWORD / KEY_ALIAS / KEY_PASSWORD
+        # 密钥本体永不入库（android/.gitignore 已忽略 *.jks 与 key.properties）。
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 -d > android/release.jks
+          cat > android/key.properties <<EOF
+          storeFile=../release.jks
+          storePassword=$KEYSTORE_PASSWORD
+          keyAlias=$KEY_ALIAS
+          keyPassword=$KEY_PASSWORD
+          EOF
+
+      - name: Pub get
+        run: flutter pub get
+
+      - name: Analyze / Test
+        run: |
+          flutter analyze --fatal-infos
+          flutter test
+
+      - name: 构建（arm64 专用包 + 双 ABI 通用包）
+        # 不加 --target-platform 会把 armeabi-v7a 一起打进通用包（38MB → 56MB），
+        # 与 README 声明的体积不符——这条参数是发布正确性的一部分。
+        run: flutter build apk --release --target-platform android-arm64,android-x64
+
+      - name: 断言签名证书
+        # 证书指纹写死：用错密钥（例如 debug 签名或新 keystore）必须当场失败，
+        # 而不是等用户装上后 INSTALL_FAILED_UPDATE_INCOMPATIBLE。
+        run: |
+          APK=build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
+          CERT=$(apksigner verify --print-certs "$APK" | grep 'certificate SHA-256 digest' | head -n1 | awk '{print $NF}')
+          echo "signer cert sha256: $CERT"
+          EXPECTED="5687a29420f6e278faae3ff97e420ce1adc5517d8b5a6cf759995f38c681f3cd"
+          [ "$(echo "$CERT" | tr 'A-F' 'a-f')" = "$EXPECTED" ] || {
+            echo "签名证书与线上不一致，拒绝发布"; exit 1; }
+
+      - name: 生成校验和
+        run: |
+          cd build/app/outputs/flutter-apk
+          sha256sum app-arm64-v8a-release.apk app-release.apk > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: 上传到 GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            --title "BooruNova ${GITHUB_REF_NAME}" \
+            --latest \
+            --generate-notes \
+            build/app/outputs/flutter-apk/app-arm64-v8a-release.apk \
+            build/app/outputs/flutter-apk/app-release.apk \
+            build/app/outputs/flutter-apk/SHA256SUMS.txt
