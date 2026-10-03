@@ -1,4 +1,4 @@
-﻿import 'package:boorunova/boorus/engine/base_booru_repository.dart';
+import 'package:boorunova/boorus/engine/base_booru_repository.dart';
 import 'package:boorunova/boorus/engine/booru_repository.dart';
 import 'package:boorunova/boorus/gelbooru_v2/parser/gelbooru_v2_parser.dart';
 
@@ -25,7 +25,9 @@ class SafebooruRepository extends BaseBooruRepository {
     );
 
     final xml = response.data;
-    if (xml is! String || !xml.contains('<post')) {
+    // 守卫用 `<post` + 空白/`>`：`contains('<post')` 对零结果响应
+    // `<posts count="0" offset="0">` 也成立，等于没有守卫。
+    if (xml is! String || !RegExp(r'<post[\s>]').hasMatch(xml)) {
       return const BooruPageResult(posts: [], hasMore: false);
     }
 
@@ -34,9 +36,15 @@ class SafebooruRepository extends BaseBooruRepository {
       dio.options.baseUrl,
       xml,
     );
+    // 分页用响应自带的 count/offset（实测 `<posts count="6960037" offset="0">`）。
+    // 用「本页条数 >= limit」推断会在解析过滤掉一条时误判为末页。
+    final count = GelbooruV2Parser.parseCount(xml);
+    final offset = GelbooruV2Parser.parseOffset(xml);
     return BooruPageResult(
       posts: posts.map((p) => p.toSummary(serverId)).toList(),
-      hasMore: posts.length >= query.limit,
+      hasMore: (count != null && offset != null)
+          ? offset + posts.length < count
+          : posts.length >= query.limit,
     );
   }
 

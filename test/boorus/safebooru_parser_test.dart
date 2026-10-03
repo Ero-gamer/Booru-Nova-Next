@@ -21,7 +21,7 @@ void main() {
       expect(p.serverId, 'safebooru');
       expect(p.postUrl,
           'https://safebooru.org/index.php?page=post&s=view&id=9001');
-      expect(p.rating, 'safe');
+      expect(p.rating, 's');
       expect(p.tags, ['smile']);
     });
 

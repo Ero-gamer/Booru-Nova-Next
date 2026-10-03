@@ -1,3 +1,4 @@
+import 'package:boorunova/boorus/engine/base_booru_repository.dart';
 import 'package:boorunova/data/repository/booru/entity/post.dart';
 
 class GelbooruV2Parser {
@@ -7,6 +8,21 @@ class GelbooruV2Parser {
       '/index.php?page=dapi&s=post&q=index';
   static const String suggestEndpoint =
       '/index.php?page=dapi&s=tag&q=index';
+
+  /// 根元素上的 `count`：该查询命中的总条数。
+  ///
+  /// 实测响应形如 `<posts count="6960037" offset="0">`。分页必须靠它，
+  /// 用「本页条数」推断会在解析过滤掉一条时误判为末页。
+  static int? parseCount(String xml) {
+    final match = RegExp(r'<posts[^>]*\bcount="(\d+)"').firstMatch(xml);
+    return match == null ? null : int.tryParse(match.group(1)!);
+  }
+
+  /// 根元素上的 `offset`：本页起始下标（`pid` 是 0 基页号，offset = pid × limit）。
+  static int? parseOffset(String xml) {
+    final match = RegExp(r'<posts[^>]*\boffset="(\d+)"').firstMatch(xml);
+    return match == null ? null : int.tryParse(match.group(1)!);
+  }
 
   static List<BooruPost> parsePosts(
     String serverId,
@@ -28,7 +44,7 @@ class GelbooruV2Parser {
       final tags = _decodeXml(attrs['tags'] ?? '');
       final width = int.tryParse(attrs['width'] ?? '0') ?? 0;
       final height = int.tryParse(attrs['height'] ?? '0') ?? 0;
-      final rating = attrs['rating'] ?? 'q';
+      final rating = normalizeRating(attrs['rating']);
       final score = int.tryParse(attrs['score'] ?? '0') ?? 0;
       final source = _decodeXml(attrs['source'] ?? '');
 

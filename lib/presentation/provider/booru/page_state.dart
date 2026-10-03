@@ -164,8 +164,17 @@ class BooruPageNotifier extends StateNotifier<BooruPageState> {
         rating: _currentRating,
       ));
       if (seq != _requestSeq) return;
+      // 追加前按 postKeyOf 去重：offset 型分页（danbooru/gelbooru 系/moebooru）
+      // 在翻页期间有新投稿时，同一帖会同时出现在两页，于是同一路由里出现
+      // 两个相同 Hero tag —— 打开详情或长按预览会直接抛
+      // "multiple heroes that share the same tag"。
+      final seen = state.posts.map(postKeyOf).toSet();
+      final appended = <PostSummary>[];
+      for (final post in result.posts) {
+        if (seen.add(postKeyOf(post))) appended.add(post);
+      }
       state = state.copyWith(
-        posts: [...state.posts, ...result.posts],
+        posts: [...state.posts, ...appended],
         isLoading: false,
         hasMore: result.hasMore,
         currentPage: nextPage,

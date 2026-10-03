@@ -27,7 +27,9 @@ void main() {
       expect(p1.width, 1200);
       expect(p1.height, 800);
       expect(p1.aspectRatio, closeTo(1.5, 0.001));
-      expect(p1.rating, 'general');
+      // 归一化后统一为短码：UI 只认 s/q/e（此前直传 long 值会让徽章变灰、
+      // 详情页显示 "GENERAL"/"SENSITIVE"）
+      expect(p1.rating, 's');
       expect(p1.score, 15);
       expect(p1.source, 'https://pixiv.net/artworks/1?x=1&y=2');
       expect(p1.postUrl,

@@ -1,5 +1,6 @@
 import 'package:boorunova/presentation/l10n/app_strings.dart';
 import 'package:boorunova/presentation/provider/app_settings.dart';
+import 'package:boorunova/presentation/screens/search/search_submission.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -17,19 +18,21 @@ class HomeSearchBar extends ConsumerWidget {
   });
 
   final String hintText;
-  final ValueChanged<String> onSubmitted;
+
+  /// 提交包含评级的结构化查询（不是裸字符串：评级要交给引擎映射）。
+  final ValueChanged<SearchSubmission> onSubmitted;
   final Widget? leading;
   final bool collapsed;
   final VoidCallback? onScrollToTop;
   final String currentQuery;
 
   Future<void> _openSearchPage(BuildContext context) async {
-    final query = await context.push<String>(
+    final submission = await context.push<SearchSubmission>(
       '/search',
       extra: {'initialQuery': currentQuery},
     );
-    if (query != null && query.trim().isNotEmpty) {
-      onSubmitted(query.trim());
+    if (submission != null && submission.query.trim().isNotEmpty) {
+      onSubmitted(submission);
     }
   }
 

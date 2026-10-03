@@ -1,4 +1,4 @@
-﻿import 'package:boorunova/boorus/engine/base_booru_repository.dart';
+import 'package:boorunova/boorus/engine/base_booru_repository.dart';
 import 'package:boorunova/boorus/engine/booru_repository.dart';
 import 'package:boorunova/boorus/zerochan/parser/zerochan_parser.dart';
 
@@ -10,9 +10,12 @@ class ZerochanRepository extends BaseBooruRepository {
 
   @override
   Future<BooruPageResult> searchPosts(BooruQuery query) async {
-    final tags = query.tags.isEmpty ? 'index' : _encodeTags(query.tags);
+    // 空查询走站点根路径。此前走 `/index`，实测命中的是标签「Index」的图
+    // （item 的 tag 字段为 "Index"）——默认浏览（首页、侧栏头图、探索）
+    // 会变成某个角色的图集。
+    final path = query.tags.isEmpty ? '/' : '/${_encodeTags(query.tags)}';
     final response = await dio.get(
-      '/$tags',
+      path,
       queryParameters: {
         // 用真实值而不是 null：Dio 可能丢弃 null 参数，导致请求不带 json 标志而返回 HTML。
         'json': '1',
@@ -29,19 +32,28 @@ class ZerochanRepository extends BaseBooruRepository {
     final map = Map<String, dynamic>.from(data);
     final posts = ZerochanParser.parsePosts(serverId, map,
         baseUrl: dio.options.baseUrl);
-    final total = map['total'] as int? ?? 0;
-    final hasMore = posts.isNotEmpty &&
-        (map['pages'] as int? ?? 1) > query.page;
+
+    // hasMore 用「本页是否满员」判定。列表响应实测并不含 total / pages
+    // （只有 items 与 id/width/height/md5/thumbnail/source/tag/tags），
+    // 旧实现读那两个键恒为 0/1 → hasMore 恒 false，无限滚动永远停在第 1 页
+    // （最多 40 张），而且 `posts.isNotEmpty && ...` 曾被 `||` 短路掉，
+    // 空页也可能被当成还有下一页，形成自驱请求。
+    final hasMore = posts.isNotEmpty && posts.length >= query.limit;
 
     return BooruPageResult(
       posts: posts.map((p) => p.toSummary(serverId)).toList(),
-      hasMore: hasMore || (total > query.page * query.limit),
+      hasMore: hasMore,
     );
   }
 
-  String _encodeTags(String tags) {
-    return tags.split(RegExp(r'\s+')).join('+');
-  }
+  /// zerochan 的多标签分隔符是**逗号**：实测 `/Solo+Smile?json=1` 返回 404，
+  /// `/Solo,Smile?json=1` 正常。此前用 `+` 拼接，导致任何 ≥2 标签的搜索
+  /// （以及被拼进查询串的评级标签）在该站点全部失效。
+  String _encodeTags(String tags) => tags
+      .split(RegExp(r'\s+'))
+      .where((t) => t.isNotEmpty)
+      .map(Uri.encodeComponent)
+      .join(',');
 
   /// zerochan 无标签建议 API，返回空。
   @override

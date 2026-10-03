@@ -49,6 +49,33 @@ abstract class BaseBooruRepository implements BooruRepository {
   };
 }
 
+/// 评级归一：把各站原始取值统一成 UI 唯一认识的短码 `s` / `q` / `e`。
+///
+/// 各站口径并不一致：safebooru 实测返回短码 `s`，gelbooru 可能返回
+/// `general` / `sensitive` 这样的长名，danbooru 用 `g` 表示 general。
+/// 不归一就会出现详情页显示 "SENSITIVE"、徽章因为不认这个值而变灰、
+/// 同一张图在首页与收藏页颜色不同。
+///
+/// 未知值落到 `q`（可疑）而不是 `e`：把不确定当限制级会误伤安全筛选，
+/// 也会让头图的 [isSafeRating] 直接否掉一条本来可用的候选。
+String normalizeRating(String? raw) {
+  switch ((raw ?? '').trim().toLowerCase()) {
+    case 's':
+    case 'safe':
+    case 'general':
+    case 'g':
+      return 's';
+    case 'q':
+    case 'questionable':
+      return 'q';
+    case 'e':
+    case 'explicit':
+      return 'e';
+    default:
+      return 'q';
+  }
+}
+
 /// 把解析层 [BooruPost] 转为 UI 层 [PostSummary]。
 /// 原先 8 个引擎各有一份逐字节相同的私有扩展，现收敛为一份。
 extension BooruPostToSummary on BooruPost {

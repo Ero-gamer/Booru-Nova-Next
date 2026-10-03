@@ -1,3 +1,4 @@
+import 'package:boorunova/boorus/engine/base_booru_repository.dart';
 import 'package:boorunova/data/repository/booru/entity/post.dart';
 
 class Rule34Parser {
@@ -53,16 +54,7 @@ class Rule34Parser {
     }).where((name) => name.isNotEmpty).toList();
   }
 
-  static String _normalizeRating(String rating) {
-    switch (rating.toLowerCase()) {
-      case 'safe':
-        return 's';
-      case 'questionable':
-        return 'q';
-      case 'explicit':
-        return 'e';
-      default:
-        return 'e';
-    }
-  }
+  /// 评级归一交给共享实现：此前这里的未知值落到 `e`（限制级），
+  /// 字段缺失或站点新增枚举都会被当成限制级，安全筛选与头图判定随之出错。
+  static String _normalizeRating(String rating) => normalizeRating(rating);
 }

@@ -71,9 +71,10 @@ void main() {
           'q');
       expect(Rule34Parser.parsePosts(serverId, mk('explicit')).first.rating,
           'e');
-      // 未知 rating 按 e 处理（保守策略）
+      // 未知值按 q（可疑）处理：此前按 e（限制级）处理，字段缺失或站点新增
+      // 枚举都会被标成限制级，安全筛选与头图判定跟着出错
       expect(Rule34Parser.parsePosts(serverId, mk('whatever')).first.rating,
-          'e');
+          'q');
     });
 
     test('空输入返回空列表', () {
@@ -92,8 +93,8 @@ void main() {
       expect(p.width, 0);
       expect(p.aspectRatio, 1.0);
       expect(p.tags, isEmpty);
-      // 缺失 rating 归一化为 e
-      expect(p.rating, 'e');
+      // 缺失 rating 归一化为 q
+      expect(p.rating, 'q');
     });
 
     test('id 缺失时 postUrl 为 null', () {

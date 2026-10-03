@@ -479,6 +479,59 @@ class T {
     }
   }
 
+  /// 底层异常 → 面向用户的提示。
+  ///
+  /// 放在文案层而不是某个页面里：此前它是 `home_content` 的私有函数，
+  /// 其他页面（探索/图集/图集详情）只能把 `e.toString()` 的英文栈丢给用户。
+  /// 全应用一份映射，也保证同一个错误在任何页面说法一致。
+  static String friendlyError(Object error) {
+    final raw = error.toString();
+    // 哨兵错误码（page_state 在「未选站点」时写入）在这里映射成文案，
+    // 避免状态层硬编码语言。
+    const noServerSentinel = 'noServerSelected';
+    if (raw.contains(noServerSentinel)) {
+      return noServerSelected;
+    }
+    if (raw.contains('connection timeout') ||
+        raw.contains('Connection timeout') ||
+        raw.contains('connectionTimeout')) {
+      return errTimeout;
+    }
+    if (raw.contains('receiveTimeout') || raw.contains('Receive timeout')) {
+      return errReceiveTimeout;
+    }
+    if (raw.contains('Connection refused')) {
+      return errRefused;
+    }
+    if (raw.contains('Failed host lookup') ||
+        raw.contains('No address associated with hostname')) {
+      return errDns;
+    }
+    if (raw.contains('HandshakeException') || raw.contains('CERTIFICATE')) {
+      return errTls;
+    }
+    if (RegExp(r'status (code )?of 403').hasMatch(raw)) {
+      return err403;
+    }
+    if (RegExp(r'status (code )?of 404').hasMatch(raw)) {
+      return err404;
+    }
+    if (RegExp(r'status (code )?of 429').hasMatch(raw)) {
+      return err429;
+    }
+    if (RegExp(r'status (code )?of 5\d\d').hasMatch(raw)) {
+      return err5xx;
+    }
+    if (raw.contains('SocketException')) {
+      return errNetwork;
+    }
+    if (raw.contains('XML') || raw.contains('parser') || raw.contains('json')) {
+      return errBadPayload;
+    }
+    final lines = raw.split('\n');
+    return lines.length > 2 ? '${lines[0]}\n${lines[1]}' : raw;
+  }
+
   /// 中文优先、英文随语言切换返回。
   static String _t(String zh, String en) => isEn ? en : zh;
 }

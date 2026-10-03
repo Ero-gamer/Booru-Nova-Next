@@ -96,9 +96,16 @@ class _ExploreTabState extends ConsumerState<_ExploreTab>
       return;
     }
     try {
-      final result = await repo.searchPosts(
+      // 排序元标签不是所有引擎都认：实测 safebooru（gelbooru DAPI）上
+      // `order:id_desc` 命中 0 条，`order:score`/`order:random` 直接报错。
+      // 所以排序查询为空时退回默认排序再取一页——宁可"排序没生效"，
+      // 也不要给用户一个空白页。
+      var result = await repo.searchPosts(
         BooruQuery(tags: widget.query, limit: 60),
       );
+      if (result.posts.isEmpty && widget.query.isNotEmpty) {
+        result = await repo.searchPosts(const BooruQuery(tags: '', limit: 60));
+      }
       if (!mounted) return;
       setState(() {
         _posts = result.posts;
@@ -108,7 +115,7 @@ class _ExploreTabState extends ConsumerState<_ExploreTab>
       if (!mounted) return;
       setState(() {
         _loading = false;
-        _error = e.toString();
+        _error = T.friendlyError(e);
       });
     }
   }

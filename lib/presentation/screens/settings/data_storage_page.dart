@@ -42,27 +42,57 @@ class _DataStoragePageState extends State<DataStoragePage> {
           if (e is File) size += await e.length();
         }
       }
+      if (!mounted) return;
       setState(() => _cacheSize = '${(size / 1048576).toStringAsFixed(1)} MB');
     } catch (_) {
+      if (!mounted) return;
       setState(() => _cacheSize = T.unknown);
+    }
+  }
+
+  /// 下载记录引用的文件路径集合。
+  ///
+  /// 清理缓存必须跳过它们：默认下载目录一旦是缓存目录（历史行为），
+  /// 点一次「清除缓存」就会把用户下载的文件删光，而下载记录还指着它们，
+  /// 界面显示"文件仍在"、点开却什么都没有。
+  Set<String> _referencedFiles() {
+    try {
+      return UserDownloadsRepo()
+          .getAll()
+          .map((e) => e.localPath)
+          .where((p) => p.isNotEmpty)
+          .toSet();
+    } catch (_) {
+      // 读不到记录时宁可不删：删错文件不可逆，留一点缓存还有救
+      return const {};
     }
   }
 
   Future<void> _clearCache() async {
     try {
       final temp = await _appTempDir();
+      final protected = _referencedFiles();
       int count = 0;
+      int skipped = 0;
       if (temp != null && temp.existsSync()) {
         await for (final e in temp.list()) {
-          if (e is File) {
-            await e.delete();
-            count++;
+          if (e is! File) continue;
+          if (protected.contains(e.path)) {
+            skipped++;
+            continue;
           }
+          await e.delete();
+          count++;
         }
       }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${T.clearedCacheFiles}$count${T.tempFiles}')),
+          SnackBar(
+            content: Text(
+              '${T.clearedCacheFiles}$count${T.tempFiles}'
+              '${skipped > 0 ? '（$skipped ${T.downloadHistory}）' : ''}',
+            ),
+          ),
         );
         await _calcCache();
       }

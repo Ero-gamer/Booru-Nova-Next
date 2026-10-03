@@ -1,3 +1,4 @@
+import 'package:boorunova/boorus/engine/base_booru_repository.dart';
 import 'package:boorunova/data/repository/booru/entity/post.dart';
 
 class DanbooruParser {
@@ -6,7 +7,13 @@ class DanbooruParser {
   static const String searchEndpoint = '/posts.json';
   static const String suggestEndpoint = '/tags.json';
 
+  /// 相对路径补成绝对 URL。
+  ///
+  /// 空串必须原样返回空串：此前 `url.startsWith('http') ? url : '$baseUrl$url'`
+  /// 会把「站点没给这个 URL」（banned/deleted/无文件帖）拼成站点首页——
+  /// 于是缩略图和原图都变成一张 HTML 首页，下载下来是网页。
   static String _normalize(String url, String baseUrl) {
+    if (url.isEmpty) return '';
     return url.startsWith('http') ? url : '$baseUrl$url';
   }
 
@@ -28,7 +35,7 @@ class DanbooruParser {
       final tagCharacter = (post['tag_string_character'] as String?) ?? '';
       final tagCopyright = (post['tag_string_copyright'] as String?) ?? '';
       final tagMeta = (post['tag_string_meta'] as String?) ?? '';
-      final rating = (post['rating'] as String?) ?? 'q';
+      final rating = normalizeRating(post['rating'] as String?);
       final score = (post['score'] as int?) ?? 0;
       final source = (post['source'] as String?) ?? '';
       final uploader = (post['uploader_name'] as String?) ?? '';

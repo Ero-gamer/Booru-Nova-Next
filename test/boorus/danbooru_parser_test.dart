@@ -106,7 +106,7 @@ void main() {
       expect(p.tags, isEmpty);
       expect(p.rating, 'q');
       expect(p.score, 0);
-      expect(p.originalUrl, baseUrl); // 空 URL 经 _normalize 拼成 baseUrl
+      expect(p.originalUrl, ''); // 空 URL 保持为空，不再拼成站点首页
     });
   });
 

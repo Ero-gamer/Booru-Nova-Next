@@ -1,4 +1,4 @@
-﻿import 'package:boorunova/boorus/engine/base_booru_repository.dart';
+import 'package:boorunova/boorus/engine/base_booru_repository.dart';
 import 'package:boorunova/boorus/engine/booru_repository.dart';
 import 'package:boorunova/boorus/rule34/parser/rule34_parser.dart';
 
@@ -26,11 +26,13 @@ class Rule34Repository extends BaseBooruRepository {
     );
 
     final data = response.data;
-    if (data is! List) {
+    // rule34 走 JSON DAPI：既可能是顶层数组，也可能被包成对象（`{"post":[...]}`）
+    final raw = data is Map ? (data['post'] ?? data['posts']) : data;
+    if (raw is! List) {
       return const BooruPageResult(posts: [], hasMore: false);
     }
 
-    final posts = Rule34Parser.parsePosts(serverId, data);
+    final posts = Rule34Parser.parsePosts(serverId, raw);
     return BooruPageResult(
       posts: posts.map((p) => p.toSummary(serverId)).toList(),
       hasMore: posts.length >= query.limit,

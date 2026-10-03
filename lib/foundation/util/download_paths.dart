@@ -2,7 +2,11 @@ import 'dart:io';
 
 import 'package:path_provider/path_provider.dart';
 
-/// 解析下载目录：优先用户设置的 [downloadPath]，不可用则回退到系统临时目录。
+/// 解析下载目录：优先用户设置的 [downloadPath]，不可用则回退到默认目录。
+///
+/// 回退目标必须是**持久**目录：此前回退到 `getTemporaryDirectory()`，那是系统
+/// 随时可以回收的缓存目录，「清理缓存」也会把它整个删掉——而下载记录里的
+/// localPath 还指着它，文件会凭空消失且用户什么都没做。
 Future<Directory> resolveDownloadDir(String downloadPath) async {
   if (downloadPath.isNotEmpty) {
     final dir = Directory(downloadPath);
@@ -13,11 +17,55 @@ Future<Directory> resolveDownloadDir(String downloadPath) async {
       await dir.create(recursive: true);
       return dir;
     } catch (_) {
-      // 路径无效（权限/只读等）时回退临时目录，避免下载失败。
+      // 路径无效（权限/只读等）时回退默认目录，避免下载直接失败。
+      // 注意回退到的是持久目录，不是缓存目录。
+    }
+  }
+  return defaultDownloadDir();
+}
+
+/// 默认下载目录：app 专属外部目录（`/Android/data/<pkg>/files/…`）。
+///
+/// 不需要任何存储权限，也不会被系统当缓存回收。取不到时逐级回退到应用文档
+/// 目录，最后才是临时目录（极端情况下至少不崩）。
+Future<Directory> defaultDownloadDir() async {
+  final providers = <Future<Directory?> Function()>[
+    getExternalStorageDirectory,
+    getApplicationDocumentsDirectory,
+  ];
+  for (final provider in providers) {
+    try {
+      final dir = await provider();
+      if (dir == null) continue;
+      if (!dir.existsSync()) {
+        await dir.create(recursive: true);
+      }
+      return dir;
+    } catch (_) {
+      continue;
     }
   }
   return getTemporaryDirectory();
 }
+
+/// URL 的扩展名（含点，已剥掉 query / fragment）。没有扩展名时返回 `''`。
+///
+/// 全项目**唯一**的扩展名口径：守卫和文件名生成必须用同一个函数，否则会
+/// 出现「守卫认为有扩展名 → 放行 → 文件名却没扩展名 → Gal 抛
+/// FileNotFoundException → 用户看到"下载失败"，而文件其实已经躺在磁盘上」。
+String extensionOf(String url) {
+  final raw = url.split('?').first.split('#').first;
+  final base = raw.split('/').last;
+  final dot = base.lastIndexOf('.');
+  return dot > 0 ? base.substring(dot) : '';
+}
+
+/// 视频扩展名集合。Gal 按媒体类型写入不同的相册集合，把 mp4 交给图片 API
+/// 会在相册里留下一条无法播放的「图片」，甚至被 MediaStore 拒绝。
+const Set<String> videoExtensions = {'.mp4', '.webm', '.mov', '.mkv', '.m4v'};
+
+bool isVideoFile(String url) =>
+    videoExtensions.contains(extensionOf(url).toLowerCase());
 
 /// 生成唯一且保留扩展名的文件名，以 [postId] 为前缀，避免同名文件互相覆盖。
 ///
@@ -32,9 +80,10 @@ String uniqueFileName(
   // 只取路径最后一段，剥掉 query / fragment
   final raw = url.split('?').first.split('#').first;
   final base = raw.split('/').last;
-  final dot = base.lastIndexOf('.');
-  final stem = base.substring(0, dot > 0 ? dot : base.length);
-  final ext = dot > 0 ? base.substring(dot) : '';
+  final ext = extensionOf(url);
+  final stem = ext.isEmpty || !base.endsWith(ext)
+      ? base
+      : base.substring(0, base.length - ext.length);
   final safeStem =
       stem.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_').replaceAll('..', '.');
   // 扩展名同样过白名单：保留字母数字点（如 .jpg .png），其余替换为下划线

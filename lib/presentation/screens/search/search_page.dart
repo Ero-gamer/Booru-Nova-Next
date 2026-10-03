@@ -5,6 +5,7 @@ import 'package:boorunova/presentation/l10n/app_strings.dart';
 import 'package:boorunova/presentation/provider/booru/page_state.dart';
 import 'package:boorunova/presentation/provider/booru/tag_suggestions.dart';
 import 'package:boorunova/presentation/provider/booru/trending_tags.dart';
+import 'package:boorunova/presentation/screens/search/search_submission.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -71,9 +72,13 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     final parts = <String>[
       if (q.isNotEmpty) q,
       if (_sort.isNotEmpty) _sort,
-      if (_rating != null) 'rating:$_rating',
     ];
-    context.pop(parts.join(' '));
+    // 评级不再拼成 `rating:<短码>` 标签：那样会绕过引擎映射，在
+    // gelbooru/rule34/safebooru 上筛出空列表（实测 rating:s → 0 条）。
+    // 改为结构化回传，由 BooruQuery.rating 走各引擎自己的映射。
+    context.pop<SearchSubmission>(
+      (query: parts.join(' ').trim(), rating: _rating),
+    );
   }
 
   void _onChanged(String value) {

@@ -15,50 +15,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
 
-/// 底层异常 → 面向用户的提示。
-///
-/// 全部走 T 而非硬编码中文：这张表在英文界面下同样会被读到。
-String _friendlyError(String raw) {
-  if (raw == kNoServerSelected) return T.noServerSelected;
-  if (raw.contains('connection timeout') ||
-      raw.contains('Connection timeout') ||
-      raw.contains('connectionTimeout')) {
-    return T.errTimeout;
-  }
-  if (raw.contains('receiveTimeout') || raw.contains('Receive timeout')) {
-    return T.errReceiveTimeout;
-  }
-  if (raw.contains('Connection refused')) {
-    return T.errRefused;
-  }
-  if (raw.contains('Failed host lookup') ||
-      raw.contains('No address associated with hostname')) {
-    return T.errDns;
-  }
-  if (raw.contains('HandshakeException') || raw.contains('CERTIFICATE')) {
-    return T.errTls;
-  }
-  if (RegExp(r'status (code )?of 403').hasMatch(raw)) {
-    return T.err403;
-  }
-  if (RegExp(r'status (code )?of 404').hasMatch(raw)) {
-    return T.err404;
-  }
-  if (RegExp(r'status (code )?of 429').hasMatch(raw)) {
-    return T.err429;
-  }
-  if (RegExp(r'status (code )?of 5\d\d').hasMatch(raw)) {
-    return T.err5xx;
-  }
-  if (raw.contains('SocketException')) {
-    return T.errNetwork;
-  }
-  if (raw.contains('XML') || raw.contains('parser') || raw.contains('json')) {
-    return T.errBadPayload;
-  }
-  final lines = raw.split('\n');
-  return lines.length > 2 ? '${lines[0]}\n${lines[1]}' : raw;
-}
+/// 底层异常 → 面向用户的提示的映射已提升到 [T.friendlyError]：
+/// 此前它是本文件的私有函数，探索/图集等页面只能把英文栈直接丢给用户。
 
 class HomeContent extends ConsumerStatefulWidget {
   const HomeContent({super.key, this.favicon});
@@ -200,7 +158,7 @@ class _HomeContentState extends ConsumerState<HomeContent> {
                     child: EmptyState(
                       icon: Icons.cloud_off,
                       title: T.somethingWentWrong,
-                      hint: _friendlyError(pageState.error!),
+                      hint: T.friendlyError(pageState.error!),
                       action: OutlinedButton.icon(
                         onPressed: () =>
                             ref.read(booruPageStateProvider.notifier).refresh(),
@@ -326,9 +284,13 @@ class _HomeContentState extends ConsumerState<HomeContent> {
                 }
               },
               hintText: T.searchHint,
-              onSubmitted: (query) {
+              onSubmitted: (submission) {
                 selectionNotifier.clear();
-                ref.read(booruPageStateProvider.notifier).search(query);
+                // 评级走结构化字段，由引擎映射成该站认识的写法；此前搜索页把
+                // `rating:s` 拼进查询串，在 gelbooru/rule34/safebooru 上恒为 0 结果。
+                ref
+                    .read(booruPageStateProvider.notifier)
+                    .search(submission.query, rating: submission.rating);
               },
             ),
           ),

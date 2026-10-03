@@ -1,4 +1,4 @@
-﻿import 'package:boorunova/boorus/e621/parser/e621_parser.dart';
+import 'package:boorunova/boorus/e621/parser/e621_parser.dart';
 import 'package:boorunova/boorus/engine/base_booru_repository.dart';
 import 'package:boorunova/boorus/engine/booru_repository.dart';
 
@@ -103,8 +103,13 @@ class E621Repository extends BaseBooruRepository {
       queryParameters: {'page': page, 'limit': limit},
     );
     final data = response.data;
-    if (data is! List) return [];
-    return data.whereType<Map<String, dynamic>>().map((m) {
+    // e621 的接口一律包一层对象（同文件 fetchTrendingTags 里的注释已经写明
+    // `/tags.json` 返回 `{"tags": [...]}`）；`/pools.json` 同样是
+    // `{"pools": [...]}`。此前只接受顶层数组 → 图集在 e621 上恒为空，
+    // 而能力位又说支持，入口可见却永远空态。
+    final raw = data is Map ? data['pools'] : data;
+    if (raw is! List) return [];
+    return raw.whereType<Map<String, dynamic>>().map((m) {
       final ids = (m['post_ids'] as List? ?? [])
           .map((i) => i.toString())
           .toList();
