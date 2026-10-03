@@ -14,6 +14,9 @@ class _FakeRepo implements BooruRepository {
   @override
   Future<String?> resolveMediaUrl(String postUrl) async => null;
 
+  @override
+  Map<String, String> get mediaHeaders => const {};
+
   int suggestCalls = 0;
   final List<String> suggestQueries = [];
 

@@ -55,6 +55,9 @@ void main() {
       expect(first.rating, 'e');
       // 列表页不提供播放地址，留空交给按需解析
       expect(first.originalUrl, isEmpty);
+      // 但必须**显式**标记为视频帖：否则会被当成图片帖渲染缩略图
+      // （用户实测症状：「最多只是显示图片」，播放器根本走不到）
+      expect(first.isVideo, isTrue);
       // 相对缩略图要补成绝对地址
       expect(posts[1].thumbnailUrl,
           'https://rule34video.com/contents/2222000/2222222/320x180/1.jpg');
@@ -98,6 +101,24 @@ var flashvars = {"video_url":"https:\\/\\/cdn.example.com\\/hls\\/master.m3u8?to
       const html =
           '<a href="https://rule34video.com/get_file/51/h/1/1/1111111_preview.mp4/">p</a>';
       expect(KvsParser.parseVideoPage(html), isNull);
+    });
+
+    test('协议相对与相对路径都要补成绝对地址（播放器不认无 scheme 地址）', () {
+      const html = '''
+var flashvars = {"video_url":"\\/\\/cdn.example.com\\/get_file\\/1\\/a\\/v.mp4"};
+''';
+      final video = KvsParser.parseVideoPage(html, baseUrl: 'https://site.example');
+      expect(video?.url, 'https://cdn.example.com/get_file/1/a/v.mp4');
+    });
+
+    test('带参数的地址要还原 &amp; ，否则 token 参数名会被写坏', () {
+      const html = '''
+var flashvars = {"video_url":"https://cdn.example.com/get_file/1/a/v.mp4?token=abc&amp;e=1"};
+''';
+      expect(
+        KvsParser.parseVideoPage(html)?.url,
+        'https://cdn.example.com/get_file/1/a/v.mp4?token=abc&e=1',
+      );
     });
 
     test('既没有 flashvars 也没有媒体直链时返回 null（UI 报可重试的错）', () {

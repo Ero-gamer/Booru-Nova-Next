@@ -78,6 +78,7 @@ class PostSummary {
     this.tagCharacter = const [],
     this.tagCopyright = const [],
     this.tagMeta = const [],
+    this.isVideo = false,
   });
 
   final String id;
@@ -98,6 +99,13 @@ class PostSummary {
   final List<String> tagCharacter;
   final List<String> tagCopyright;
   final List<String> tagMeta;
+
+  /// 视频帖标记：由解析器显式给出，而不是靠 URL 后缀推断。
+  ///
+  /// 视频站的列表页只给缩略图，帖子里没有 mp4/HLS 地址，靠 URL 判定必然
+  /// 判成图片帖（点开只显示一张图）。这条标记是"打开时去解析播放地址"的
+  /// 唯一依据。
+  final bool isVideo;
 
   /// 转为可持久化的 [BooruPost]（收藏仓库的数据类型）。
   ///
@@ -123,6 +131,7 @@ class PostSummary {
         score: score,
         source: source,
         postUrl: postUrl,
+        isVideo: isVideo,
       );
 }
 
@@ -171,8 +180,15 @@ String permalinkOf(PostSummary post) {
 /// 此前存在三套实现且口径不一：瀑布流只看 original、详情页只看
 /// sample 优先的 mediaUrl —— 同一个帖子在列表显示视频角标、点进去却
 /// 按图片渲染。这里取并集，是三者中最宽松也最不易误判的口径。
+/// 视频判定。
+///
+/// 先看解析器给的 [PostSummary.isVideo] 显式标记（视频站必须走这条：
+/// 列表页里根本没有视频地址），再看 original / sample 的 URL 后缀——
+/// 图片站把 mp4 直接放在 original 里，靠后缀就能认出来。
+///
+/// 此前只看 URL，于是视频站的帖子被判成图片帖，点开只渲染一张缩略图。
 bool isVideoPost(PostSummary post) =>
-    _isVideoUrl(post.originalUrl) || _isVideoUrl(post.sampleUrl);
+    post.isVideo || _isVideoUrl(post.originalUrl) || _isVideoUrl(post.sampleUrl);
 
 /// 单个 URL 的视频判定。
 ///
@@ -215,4 +231,11 @@ abstract class BooruRepository {
   ///   `og:image` 里。
   /// 图片站无需实现，默认返回 null（调用方据此继续用帖子自带的 URL）。
   Future<String?> resolveMediaUrl(String postUrl) async => null;
+
+  /// 播放/取原图时附带的请求头。
+  ///
+  /// 视频站的 CDN（KVS 的 `/get_file/` 等）普遍校验 UA 与 Referer：
+  /// 播放器若用应用自己的 UA 去取，会拿到 403 或一段 HTML 错误页，
+  /// 表现就是"地址解析出来了却播不了"。图片站返回空即可。
+  Map<String, String> get mediaHeaders => const {};
 }

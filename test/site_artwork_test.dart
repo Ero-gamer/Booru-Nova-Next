@@ -42,6 +42,9 @@ class _FakeRepo implements BooruRepository {
   Future<String?> resolveMediaUrl(String postUrl) async => null;
 
   @override
+  Map<String, String> get mediaHeaders => const {};
+
+  @override
   Future<BooruPageResult> searchPosts(BooruQuery query) async {
     queries.add(query);
     final key = '${query.tags}|${query.rating ?? '-'}';

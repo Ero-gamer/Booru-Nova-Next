@@ -93,9 +93,19 @@ class KvsRepository extends BaseBooruRepository {
 
     return BooruPageResult(
       posts: posts.map((p) => p.toSummary(serverId)).toList(),
-      hasMore: paginated && posts.length >= query.limit,
+      hasMore: kvsHasMore(returned: posts.length, paginated: paginated),
     );
   }
+
+  /// 是否还有下一页。
+  ///
+  /// **不能**用 `posts.length >= query.limit` 判断：KVS 站点每页固定给
+  /// 约 24 条，而应用的页大小是 40，于是 `24 >= 40` 恒为 false——
+  /// 表现就是"加载了一批缩略图之后再也不加载了"（用户实测症状）。
+  /// 这里的口径是：只要本页拿到了内容且这条路径支持翻页，就继续请求；
+  /// 真正结束由服务端分页夹持（首条 id 重复）与空页来判定。
+  static bool kvsHasMore({required int returned, required bool paginated}) =>
+      paginated && returned > 0;
 
   /// 视频站没有标签建议接口（标签只能从 URL slug 与标题反推）。
   @override
@@ -112,11 +122,25 @@ class KvsRepository extends BaseBooruRepository {
       );
       final html = response.data;
       if (html is! String || html.isEmpty) return null;
-      return KvsParser.parseVideoPage(html)?.url;
+      return KvsParser.parseVideoPage(html, baseUrl: dio.options.baseUrl)?.url;
     } catch (_) {
       // 失败交给查看器显示可重试的错误态
       return null;
     }
+  }
+
+  /// 播放请求头：把站点自己的 UA 与 Referer 交给播放器。
+  ///
+  /// KVS 的媒体走 `/get_file/...`，这类地址多数带防盗链校验——播放器
+  /// 用默认 UA 去取会拿到 403 或 HTML，用户看到的就是"一直加载/播不了"。
+  @override
+  Map<String, String> get mediaHeaders {
+    final ua = dio.options.headers['User-Agent']?.toString() ?? '';
+    final base = dio.options.baseUrl;
+    return {
+      if (ua.isNotEmpty) 'User-Agent': ua,
+      if (base.isNotEmpty) 'Referer': base.endsWith('/') ? base : '$base/',
+    };
   }
 
   /// KVS 的标签用 `+` 连接，逐段 percent-encode。

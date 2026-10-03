@@ -1,5 +1,7 @@
 import 'package:boorunova/boorus/engine/base_booru_repository.dart';
 import 'package:boorunova/boorus/engine/booru_repository.dart';
+import 'package:boorunova/boorus/kvs/kvs_repository.dart';
+import 'package:boorunova/data/repository/history/user_history_repo.dart';
 import 'package:boorunova/foundation/util/download_paths.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -48,6 +50,99 @@ void main() {
       expect(isVideoPost(post(original: 'https://x/v.mp4')), isTrue);
       expect(isVideoPost(post(sample: 'https://x/hls/a.m3u8')), isTrue);
       expect(isVideoPost(post(original: 'https://x/a.jpg')), isFalse);
+    });
+
+    test('显式视频标记优先：视频站的列表帖没有任何视频地址也必须判为视频', () {
+      // 用户实测的 bug：视频站列表页只给缩略图，帖子里 original/sample 都是空，
+      // 只按 URL 判定 → false → 点开只渲染一张缩略图（"最多只是显示图片"）。
+      const videoSitePost = PostSummary(
+        id: '1111111',
+        serverId: 'kvs',
+        thumbnailUrl: 'https://site/contents/videos_screenshots/1/1/320x180/1.jpg',
+        sampleUrl: '',
+        originalUrl: '',
+        tags: ['sample'],
+        aspectRatio: 16 / 9,
+        width: 0,
+        height: 0,
+        rating: 'e',
+        score: 0,
+        postUrl: 'https://site/video/1111111/sample-title/',
+        isVideo: true,
+      );
+      expect(isVideoPost(videoSitePost), isTrue);
+      // 默认 false：图片站完全不受影响
+      expect(
+        isVideoPost(const PostSummary(
+          id: '1',
+          serverId: 's',
+          thumbnailUrl: 't.jpg',
+          sampleUrl: '',
+          originalUrl: '',
+          tags: [],
+          aspectRatio: 1,
+          width: 0,
+          height: 0,
+          rating: 'q',
+          score: 0,
+        )),
+        isFalse,
+      );
+    });
+  });
+
+  group('视频站分页判定', () {
+    test('每页不足应用页大小时仍要认为"还有下一页"', () {
+      // KVS 站点每页固定约 24 条，而 BooruQuery.limit 默认 40。
+      // 旧口径 `posts.length >= query.limit` → 24 >= 40 = false →
+      // 第一页之后再也不加载（用户实测症状："拉取了一部分就没有拉取了"）。
+      expect(KvsRepository.kvsHasMore(returned: 24, paginated: true), isTrue);
+      expect(KvsRepository.kvsHasMore(returned: 1, paginated: true), isTrue);
+      // 空页 = 到头
+      expect(KvsRepository.kvsHasMore(returned: 0, paginated: true), isFalse);
+      // 标签搜索实测无法翻页（/search/<tags>/<page>/ 404、?page= 无效）：
+      // 明确不再请求，避免对着同一地址反复拉
+      expect(KvsRepository.kvsHasMore(returned: 24, paginated: false), isFalse);
+    });
+  });
+
+  group('历史记录的视频标记', () {
+    test('存下来再读出来仍然是视频帖', () {
+      final entry = HistoryEntry.fromPost(
+        const PostSummary(
+          id: '1111111',
+          serverId: 'kvs',
+          thumbnailUrl: 'https://site/t.jpg',
+          sampleUrl: '',
+          originalUrl: '',
+          tags: [],
+          aspectRatio: 16 / 9,
+          width: 0,
+          height: 0,
+          rating: 'e',
+          score: 0,
+          postUrl: 'https://site/video/1111111/x/',
+          isVideo: true,
+        ),
+      );
+      expect(entry.isVideo, isTrue);
+      final restored = HistoryEntry.fromJson(entry.toJson());
+      expect(restored.isVideo, isTrue);
+      expect(restored.toPostSummary().isVideo, isTrue);
+      // 老数据（没有该字段）读回来是 false，不会误判
+      final legacy = HistoryEntry.fromJson(const {
+        'postId': '1',
+        'serverId': 's',
+        'thumbnailUrl': 't',
+        'sampleUrl': '',
+        'originalUrl': 'https://x/a.jpg',
+        'tags': <String>[],
+        'width': 1,
+        'height': 1,
+        'rating': 'q',
+        'score': 0,
+      });
+      expect(legacy.isVideo, isFalse);
     });
   });
 

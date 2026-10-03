@@ -27,6 +27,9 @@ class _ResolvedVideoState extends ConsumerState<ResolvedVideo> {
   bool _loading = false;
   Object? _error;
 
+  /// 播放时附带的请求头（防盗链的站点需要站点的 UA 与 Referer）。
+  Map<String, String> _headers = const {};
+
   @override
   void initState() {
     super.initState();
@@ -41,13 +44,25 @@ class _ResolvedVideoState extends ConsumerState<ResolvedVideo> {
   Future<void> _resolve() async {
     final repo = ref.read(booruPageStateProvider.notifier).repository;
     final pageUrl = permalinkOf(widget.post);
-    if (repo == null || pageUrl.isEmpty) {
+    // 必须确认仓库属于这个帖子的站点：切换站点后从历史/下载重开旧帖时，
+    // 当前页仓库可能是另一个站点的，拿它去抓详情页只会得到 404 或垃圾。
+    final mismatch = repo == null ||
+        pageUrl.isEmpty ||
+        (widget.post.serverId.isNotEmpty && repo.serverId != widget.post.serverId);
+    if (mismatch) {
       setState(() => _error = 'no playback source');
       return;
     }
+    // 视频站的媒体地址多数带防盗链：把站点自己的 UA 与「详情页」作为
+    // Referer 交给播放器，否则会拿到 403 或 HTML 错误页（表现为播不了）。
+    final headers = <String, String>{
+      ...repo.mediaHeaders,
+      'Referer': pageUrl,
+    };
     setState(() {
       _loading = true;
       _error = null;
+      _headers = headers;
     });
     try {
       final url = await repo.resolveMediaUrl(pageUrl);
@@ -113,6 +128,9 @@ class _ResolvedVideoState extends ConsumerState<ResolvedVideo> {
         child: CircularProgressIndicator(color: Colors.white),
       );
     }
-    return VideoViewer(url: url);
+    return VideoViewer(
+      url: url,
+      headers: _headers.isEmpty ? null : _headers,
+    );
   }
 }

@@ -84,13 +84,20 @@ class KvsParser {
         score: 0,
         postUrl: _absolute(href, baseUrl),
         uploader: duration,
+        // 视频帖必须**显式**标记：列表页里没有任何 mp4/HLS 地址
+        // （播放地址要开详情页才知道），只靠 URL 判定会被当成图片帖，
+        // 于是点开只渲染一张缩略图——这正是用户实测到的"只显示图片"。
+        isVideo: true,
       ));
     }
     return posts;
   }
 
   /// 解析详情页，返回「可播放地址」与「缩略图/海报」。
-  static KvsVideo? parseVideoPage(String html) {
+  ///
+  /// [baseUrl] 用于把协议相对（`//cdn/...`）与站内相对路径补成绝对地址：
+  /// 播放器拿到没有 scheme 的地址只会失败，而视频站的媒体地址三种写法都有。
+  static KvsVideo? parseVideoPage(String html, {String baseUrl = ''}) {
     final fields = _parseFlashvars(html);
 
     // 优先级：mp4 优先（能播也能存），流清单兜底（能播不能存）。
@@ -115,10 +122,20 @@ class KvsParser {
     if (playable == null || playable.isEmpty) return null;
 
     return KvsVideo(
-      url: playable,
+      url: _absolute(playable, baseUrl),
       poster: fields['poster'] ?? fields['preview_url'],
     );
   }
+
+  /// 反转义并归一：`https:\/\/` → `https://`，`&amp;` → `&`。
+  ///
+  /// 实测 rule34video 的详情页里有 122 处转义斜杠；`&amp;` 则出现在带参
+  /// 数（token）的地址里，不还原会把参数名变成 `amp;token`，服务端直接拒。
+  static String _clean(String url) => url
+      .replaceAll(r'\/', '/')
+      .replaceAll(r'\u002F', '/')
+      .replaceAll('&amp;', '&')
+      .trim();
 
   /// mp4 优于流清单：能播也能存。
   static bool _prefer(String candidate, String current) {
@@ -177,7 +194,7 @@ class KvsParser {
       dotAll: true,
     ).firstMatch(body);
     if (match == null) return null;
-    return (match.group(1) ?? '').replaceAll(r'\/', '/').replaceAll(r'\u002F', '/').trim();
+    return _clean(match.group(1) ?? '');
   }
 
   static String? _bestMediaUrl(String html) {
@@ -189,7 +206,7 @@ class KvsParser {
       caseSensitive: false,
     )
         .allMatches(html)
-        .map((m) => m.group(0)!.replaceAll(r'\/', '/'))
+        .map((m) => _clean(m.group(0)!))
         .where((url) =>
             !url.toLowerCase().contains('_preview.') &&
             !url.toLowerCase().contains('/preview.'))

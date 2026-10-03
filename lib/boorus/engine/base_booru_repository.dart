@@ -36,6 +36,10 @@ abstract class BaseBooruRepository implements BooruRepository {
   @override
   Future<String?> resolveMediaUrl(String postUrl) async => null;
 
+  /// 默认不带额外请求头；需要防盗链头的引擎自行覆盖。
+  @override
+  Map<String, String> get mediaHeaders => const {};
+
   @override
   Future<List<String>> fetchTrendingTags({int limit = 20}) async => [];
 
@@ -123,5 +127,6 @@ extension BooruPostToSummary on BooruPost {
         score: score,
         source: source,
         postUrl: postUrl,
+        isVideo: isVideo,
       );
 }

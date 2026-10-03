@@ -22,6 +22,7 @@ class HistoryEntry {
     required this.score,
     required this.viewedAt,
     this.postUrl,
+    this.isVideo = false,
   });
 
   factory HistoryEntry.fromPost(PostSummary post) => HistoryEntry(
@@ -37,6 +38,8 @@ class HistoryEntry {
         score: post.score,
         viewedAt: DateTime.now(),
         postUrl: post.postUrl,
+        // 视频标记必须一起存：否则从历史重开视频帖又会被当成图片帖
+        isVideo: post.isVideo,
       );
 
   factory HistoryEntry.fromJson(Map<String, dynamic> json) => HistoryEntry(
@@ -55,6 +58,7 @@ class HistoryEntry {
             ? DateTime.tryParse(json['viewedAt'].toString()) ?? DateTime.now()
             : DateTime.now(),
         postUrl: json['postUrl']?.toString(),
+        isVideo: json['isVideo'] == true,
       );
 
   /// 还原为 [PostSummary]，让历史记录能直接喂给查看器。
@@ -72,6 +76,7 @@ class HistoryEntry {
         rating: rating,
         score: score,
         postUrl: postUrl,
+        isVideo: isVideo,
         // 历史不存 aspectRatio；用真实像素兜底，避免退化成 1:1 拉伸。
         aspectRatio: (width > 0 && height > 0) ? width / height : 1.0,
       );
@@ -88,6 +93,9 @@ class HistoryEntry {
   final DateTime viewedAt;
   final String? postUrl;
 
+  /// 视频帖标记：跟着历史一起存，重开时才知道该拉播放地址而不是当图片显示。
+  final bool isVideo;
+
   Map<String, dynamic> toJson() => {
         'postId': postId,
         'serverId': serverId,
@@ -101,6 +109,7 @@ class HistoryEntry {
         'score': score,
         'viewedAt': viewedAt.toIso8601String(),
         'postUrl': postUrl,
+        'isVideo': isVideo,
       };
 }
 

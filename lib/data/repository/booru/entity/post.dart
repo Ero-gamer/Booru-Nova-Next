@@ -19,6 +19,7 @@ class BooruPost {
     this.tagCharacter = const [],
     this.tagCopyright = const [],
     this.tagMeta = const [],
+    this.isVideo = false,
   });
 
   factory BooruPost.fromJson(Map<String, dynamic> json) => BooruPost(
@@ -43,6 +44,8 @@ class BooruPost {
         tagCharacter: _tagList(json['tagCharacter']),
         tagCopyright: _tagList(json['tagCopyright']),
         tagMeta: _tagList(json['tagMeta']),
+        // 老数据没有这个字段：默认 false，读回来仍按 URL 判定兼容
+        isVideo: json['isVideo'] == true,
       );
 
   static List<String> _tagList(Object? v) =>
@@ -68,6 +71,13 @@ class BooruPost {
   final List<String> tagCopyright;
   final List<String> tagMeta;
 
+  /// 视频帖标记。
+  ///
+  /// 视频站的列表页**只给缩略图**，帖子里没有任何 mp4/HLS 地址（播放地址要
+  /// 打开详情页才解析得出来）。因此"这是不是视频"必须由解析器显式告知，
+  /// 不能靠 URL 后缀去猜——猜的结果是视频帖被当成图片帖渲染。
+  final bool isVideo;
+
   Map<String, dynamic> toJson() => {
         'id': id,
         'serverId': serverId,
@@ -88,6 +98,7 @@ class BooruPost {
         'tagCharacter': tagCharacter,
         'tagCopyright': tagCopyright,
         'tagMeta': tagMeta,
+        'isVideo': isVideo,
       };
 
   static const empty = BooruPost(
