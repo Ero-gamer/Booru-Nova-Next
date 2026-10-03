@@ -1,9 +1,8 @@
-import 'dart:convert';
-
 import 'package:boorunova/boorus/engine/booru_repository.dart';
 import 'package:boorunova/foundation/database/hive_setup.dart';
-import 'package:boorunova/foundation/util/json_safe.dart';
+import 'package:boorunova/foundation/database/json_store.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:hive_ce/hive.dart';
 
 final userHistoryRepoProvider = Provider<UserHistoryRepo>((ref) {
   return UserHistoryRepo();
@@ -108,18 +107,32 @@ class HistoryEntry {
 class UserHistoryRepo {
   static const _key = 'history';
 
-  /// 内存缓存：首次访问时从 Hive 载入，之后 add/remove 先同步改内存再持久化，
-  /// 避免并发 read-modify-write 时互相覆盖（快速翻页/幻灯片连续触发 add）。
-  List<HistoryEntry>? _cache;
+  /// 历史上限。
+  static const int maxEntries = 200;
 
-  List<HistoryEntry> _load() {
+  static JsonListStore get _store => JsonListStore(HiveSetup.settingsBox, _key);
+
+  /// 内存缓存：与收藏同理，做成 static（仓库实例会随 invalidate 重建，
+  /// 缓存跟着实例走就会出现两个快照互相覆盖）。写入统一走串行事务，
+  /// 事务里读的是存储的最新值，不是这份缓存。
+  static Box? _cacheBox;
+  static List<HistoryEntry>? _cache;
+
+  static List<HistoryEntry> _load() {
+    final box = HiveSetup.settingsBox;
+    if (!identical(_cacheBox, box)) {
+      _cacheBox = box;
+      _cache = null;
+    }
     final cached = _cache;
     if (cached != null) return cached;
-    final raw = asStringOrNull(HiveSetup.settingsBox.get(_key));
-    final list = decodeJsonList(raw)
-        .map((e) {
-          final m = asStringMap(e);
-          if (m == null) return null;
+    _adopt(_store.read());
+    return _cache!;
+  }
+
+  static void _adopt(List<Map<String, dynamic>> items) {
+    _cache = items
+        .map((m) {
           try {
             return HistoryEntry.fromJson(m);
           } catch (_) {
@@ -128,39 +141,51 @@ class UserHistoryRepo {
         })
         .whereType<HistoryEntry>()
         .toList();
-    _cache = list;
-    return list;
   }
 
   List<HistoryEntry> getAll() => _load();
 
   Future<void> add(PostSummary post) async {
-    final all = _load();
-    all.removeWhere((e) => e.postId == post.id && e.serverId == post.serverId);
-    all.insert(0, HistoryEntry.fromPost(post));
-    if (all.length > 200) all.removeRange(200, all.length);
-    await _save(all);
+    final written = await _store.update((items) {
+      final next = items
+          .where((m) =>
+              !('${m['postId'] ?? ''}' == post.id &&
+                  '${m['serverId'] ?? ''}' == post.serverId))
+          .toList();
+      next.insert(0, HistoryEntry.fromPost(post).toJson());
+      if (next.length > maxEntries) {
+        next.removeRange(maxEntries, next.length);
+      }
+      return next;
+    });
+    _adopt(written);
   }
 
   /// 删除单条历史。[serverId] 传入时按 postId + serverId 精确定位——
   /// 不同站点的 post id 会重复，只按 postId 删会误伤同名条目。
   /// 传 null 则删除所有站点下该 id 的条目。
   Future<void> remove(String postId, {String? serverId}) async {
-    final all = _load();
-    all.removeWhere((e) =>
-        e.postId == postId && (serverId == null || e.serverId == serverId));
-    await _save(all);
+    final written = await _store.update((items) {
+      return items.where((m) {
+        if ('${m['postId'] ?? ''}' != postId) return true;
+        if (serverId == null) return false;
+        return '${m['serverId'] ?? ''}' != serverId;
+      }).toList();
+    });
+    _adopt(written);
   }
 
   Future<void> clear() async {
+    await _store.clear();
     _cache = [];
-    await HiveSetup.settingsBox.delete(_key);
+  }
+
+  /// 覆盖写入（备份导入用）。
+  Future<void> replaceAll(List<HistoryEntry> entries) async {
+    final encoded = entries.map((e) => e.toJson()).toList();
+    await _store.write(encoded);
+    _adopt(encoded);
   }
 
   int get count => _load().length;
-
-  Future<void> _save(List<HistoryEntry> entries) async {
-    final json = entries.map((e) => e.toJson()).toList();
-    await HiveSetup.settingsBox.put(_key, jsonEncode(json));
-  }
 }

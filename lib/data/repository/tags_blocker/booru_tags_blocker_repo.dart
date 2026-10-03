@@ -1,60 +1,110 @@
 import 'package:boorunova/data/repository/tags_blocker/entity/booru_tag.dart';
 import 'package:boorunova/foundation/database/hive_setup.dart';
+import 'package:boorunova/foundation/database/json_store.dart';
 
 class BooruTagsBlockerRepo {
   static const _key = 'blocked_tags';
 
+  static JsonListStore get _store => JsonListStore(HiveSetup.settingsBox, _key);
+
+  /// 取值。
+  ///
+  /// 每条记录的键此前是「列表下标」——每次载入按位置重建，任何一次增删都会
+  /// 让 UI 手里那个 key 指向另一个标签（`delete(entry.key)` 删错人）。
+  /// 现在键随记录一起落盘（`_key` 字段），跨启动稳定。
+  /// 兼容老格式：裸 `BooruTag` JSON 的列表按下标补键，下次写入即升级。
   Map<int, BooruTag> getAll() {
-    final raw = HiveSetup.settingsBox.get(_key);
-    if (raw is List) {
-      final map = <int, BooruTag>{};
-      for (int i = 0; i < raw.length; i++) {
-        if (raw[i] is Map) {
-          try {
-            map[i] =
-                BooruTag.fromJson(Map<String, dynamic>.from(raw[i] as Map));
-          } catch (_) {
-            // 单条畸形标签跳过，不让屏蔽列表整体加载崩溃。
-          }
+    final items = _store.read();
+    final result = <int, BooruTag>{};
+    for (var i = 0; i < items.length; i++) {
+      final item = items[i];
+      try {
+        // 新格式：{'_key': n, 'tag': {...}}；老格式：{serverId, name}
+        final rawTag = item['tag'];
+        if (rawTag is Map) {
+          final key = (item['_key'] as num?)?.toInt();
+          if (key == null) continue;
+          result[key] = BooruTag.fromJson(Map<String, dynamic>.from(rawTag));
+        } else {
+          // 老格式：键按 1 基下标补（与 _upgradeLegacy 的口径一致，
+          // 否则「读出来的 key」和「写回去的 key」对不上，删除会删错条目）
+          result[i + 1] = BooruTag.fromJson(item);
         }
+      } catch (_) {
+        // 单条畸形跳过，不让整个屏蔽列表加载崩溃。
       }
-      return map;
     }
-    return {};
+    return result;
   }
 
-  Future<void> push(BooruTag tag) async {
-    final all = getAll();
-    if (tag.name.trim().isEmpty) return;
-    if (all.values.any((t) => t.name == tag.name.trim())) return;
-    final index = all.isEmpty ? 0 : all.keys.reduce((a, b) => a > b ? a : b) + 1;
-    all[index] = tag.copyWith(name: tag.name.trim());
-    await _save(all);
+  /// 新增一条屏蔽标签。名称去重、空名忽略。
+  Future<void> push(BooruTag tag) =>
+      pushAll(serverId: tag.serverId, tags: [tag.name]);
+
+  /// 批量新增。整批走**一次**事务：此前逐条 `push` 各做一遍
+  /// 「读全量 → 判重 → 覆写」，与别处的并发写入互相覆盖。
+  Future<void> pushAll({String serverId = '', required List<String> tags}) {
+    final incoming =
+        tags.map((t) => t.trim()).where((n) => n.isNotEmpty).toList();
+    if (incoming.isEmpty) return Future<void>.value();
+
+    return _store.update((items) {
+      final existing = <String>{
+        for (final item in items)
+          if (item['tag'] is Map)
+            '${(item['tag'] as Map)['name'] ?? ''}'.trim()
+          else
+            '${item['name'] ?? ''}'.trim(),
+      };
+      var nextKey = items.fold<int>(0, (max, item) {
+        final k = (item['_key'] as num?)?.toInt() ?? 0;
+        return k > max ? k : max;
+      });
+      final next = [..._upgradeLegacy(items)];
+      for (final name in incoming) {
+        if (existing.contains(name)) continue;
+        existing.add(name);
+        nextKey += 1;
+        next.add({
+          '_key': nextKey,
+          'tag': BooruTag(serverId: serverId, name: name).toJson(),
+        });
+      }
+      return next;
+    });
   }
 
-  Future<void> pushAll({String serverId = '', required List<String> tags}) async {
-    for (final tag in tags) {
-      await push(BooruTag(serverId: serverId, name: tag));
+  /// 把老格式（裸标签，键=下标）升级成带 `_key` 的新格式，避免升级后
+  /// 「一部分记录有稳定键、一部分还按下标」这种半吊子状态。
+  List<Map<String, dynamic>> _upgradeLegacy(List<Map<String, dynamic>> items) {
+    final result = <Map<String, dynamic>>[];
+    var index = 0;
+    for (final item in items) {
+      if (item['tag'] is Map) {
+        result.add(item);
+        continue;
+      }
+      index += 1;
+      result.add({'_key': index, 'tag': item});
     }
+    return result;
   }
 
-  Future<void> delete(int key) async {
-    final all = getAll();
-    all.remove(key);
-    await _save(all);
-  }
-
-  Future<void> _save(Map<int, BooruTag> tags) async {
-    await HiveSetup.settingsBox.put(
-      _key,
-      tags.values.map((t) => t.toJson()).toList(),
-    );
+  Future<void> delete(int key) {
+    return _store.update((items) {
+      // 先把老格式升级成稳定键，再按键删——否则老数据（无 _key）永远删不掉。
+      final upgraded = _upgradeLegacy(items);
+      return upgraded
+          .where((item) => (item['_key'] as num?)?.toInt() != key)
+          .toList();
+    });
   }
 
   List<String> getBlockedTagNames({String? serverId}) {
     final all = getAll();
     return all.values
-        .where((t) => serverId == null || t.serverId.isEmpty || t.serverId == serverId)
+        .where((t) =>
+            serverId == null || t.serverId.isEmpty || t.serverId == serverId)
         .map((t) => t.name)
         .toList();
   }

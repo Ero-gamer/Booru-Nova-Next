@@ -1,7 +1,5 @@
-import 'dart:convert';
-
 import 'package:boorunova/foundation/database/hive_setup.dart';
-import 'package:boorunova/foundation/util/json_safe.dart';
+import 'package:boorunova/foundation/database/json_store.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 final userDownloadsRepoProvider = Provider<UserDownloadsRepo>((ref) {
@@ -52,70 +50,64 @@ class DownloadEntry {
 
 class UserDownloadsRepo {
   static const _key = 'downloads';
-  static Future<void> _writeQueue = Future<void>.value();
 
-  Future<void> _enqueue(Future<void> Function() operation) {
-    final result = _writeQueue.then((_) => operation());
-    _writeQueue = result.catchError((_) {});
-    return result;
-  }
+  /// 记录条数上限。超出后丢弃最旧的记录（文件不动——用户的文件不该被
+  /// 一个"记录上限"悄悄删掉；孤儿文件由用户自己或系统清理决定）。
+  static const int maxEntries = 500;
 
-  List<DownloadEntry> getAll() {
-    final raw = asStringOrNull(HiveSetup.settingsBox.get(_key));
-    final list = decodeJsonList(raw);
-    // 逐条容错：单条畸形数据跳过，不让整个列表崩溃。
-    return list
-        .map((e) {
-          final m = asStringMap(e);
-          if (m == null) return null;
-          try {
-            return DownloadEntry.fromJson(m);
-          } catch (_) {
-            return null;
-          }
-        })
-        .whereType<DownloadEntry>()
-        .toList();
-  }
+  static JsonListStore get _store => JsonListStore(HiveSetup.settingsBox, _key);
 
+  List<DownloadEntry> getAll() => _store
+      .read()
+      .map((m) {
+        try {
+          return DownloadEntry.fromJson(m);
+        } catch (_) {
+          return null;
+        }
+      })
+      .whereType<DownloadEntry>()
+      .toList();
+
+  /// 新增一条下载记录。
+  ///
+  /// 按 (serverId, postId) 去重：同一帖重复下载此前会堆积多条记录，而文件名
+  /// 相同、互相覆盖，结果是"同一张图好几条记录，路径都一样"。
   Future<void> add(DownloadEntry entry) {
-    return _enqueue(() async {
-      final all = getAll();
-      all.insert(0, entry);
-      if (all.length > 500) all.removeRange(500, all.length);
-      await _save(all);
+    return _store.update((items) {
+      final key = _dedupeKey(entry.serverId, entry.postId);
+      final next = items
+          .where((m) =>
+              _dedupeKey('${m['serverId'] ?? ''}', '${m['postId'] ?? ''}') != key)
+          .toList();
+      next.insert(0, entry.toJson());
+      if (next.length > maxEntries) {
+        next.removeRange(maxEntries, next.length);
+      }
+      return next;
     });
   }
 
   /// 按 postId + serverId 精确定位删除。传入 serverId 时只删该站点的记录，
-  /// 避免不同站点的同名 post 互相误删。
+  /// 避免不同站点的同名 post 互相误删；传 null 则删除所有站点下该 id。
   Future<void> remove(String postId, {String? serverId}) {
-    return _enqueue(() async {
-      final all = getAll();
-      if (serverId == null) {
-        all.removeWhere((e) => e.postId == postId);
-      } else {
-        all.removeWhere((e) => e.postId == postId && e.serverId == serverId);
-      }
-      await _save(all);
+    return _store.update((items) {
+      return items.where((m) {
+        if ('${m['postId'] ?? ''}' != postId) return true;
+        if (serverId == null) return false;
+        return '${m['serverId'] ?? ''}' != serverId;
+      }).toList();
     });
   }
 
-  Future<void> clear() {
-    return _enqueue(() => HiveSetup.settingsBox.delete(_key));
-  }
+  Future<void> clear() => _store.clear();
 
   Future<void> saveAll(List<DownloadEntry> entries) {
-    return _enqueue(() async {
-      final json = entries.map((e) => e.toJson()).toList();
-      await HiveSetup.settingsBox.put(_key, jsonEncode(json));
-    });
+    return _store.write(entries.map((e) => e.toJson()).toList());
   }
 
   int get count => getAll().length;
 
-  Future<void> _save(List<DownloadEntry> entries) async {
-    final json = entries.map((e) => e.toJson()).toList();
-    await HiveSetup.settingsBox.put(_key, jsonEncode(json));
-  }
+  static String _dedupeKey(String serverId, String postId) =>
+      '$serverId|$postId';
 }

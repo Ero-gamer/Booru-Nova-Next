@@ -18,6 +18,15 @@ class T {
   // App
   static String get appTitle => _t('BooruNova', 'BooruNova');
 
+  // 启动失败降级页（Hive 打不开时唯一能显示的界面，不能依赖任何 provider）
+  static String get bootFailedTitle => _t('本地数据打不开', 'Local data unavailable');
+  static String get bootFailedHint => _t(
+      '应用数据文件可能已损坏或被占用。可尝试重启应用；若仍无法启动，请在系统设置里清除应用数据后重新添加站点。',
+      'The app data files may be corrupted or locked. Try restarting; if it still fails, clear app data in system settings and add your sites again.');
+  static String get recoveredDataHint => _t(
+      '检测到本地数据损坏，已隔离损坏文件并重建（原文件保留在应用目录，后缀 .corrupt）。',
+      'Local data was corrupted. The damaged file was quarantined (.corrupt suffix) and storage was rebuilt.');
+
   // Onboarding
   static String get obWelcome => _t('欢迎使用 BooruNova', 'Welcome to BooruNova');
   static String get obWelcomeSubtitle => _t(

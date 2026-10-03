@@ -1,8 +1,6 @@
-import 'dart:convert';
-
 import 'package:boorunova/data/repository/booru/entity/post.dart';
 import 'package:boorunova/foundation/database/hive_setup.dart';
-import 'package:boorunova/foundation/util/json_safe.dart';
+import 'package:boorunova/foundation/database/json_store.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_ce/hive.dart';
 
@@ -11,24 +9,38 @@ final userFavoritesRepoProvider = Provider<UserFavoritesRepo>((ref) {
 });
 
 class UserFavoritesRepo {
-  Box get _box => HiveSetup.settingsBox;
-
   static const _key = 'favorites';
 
-  /// 内存缓存：首次访问时从 Hive 反序列化一次，之后 isFavorite 走 O(1) 哈希。
-  /// 实例失效（ref.invalidate）后缓存随之丢弃，下次访问惰性重载。
-  List<BooruPost>? _cache;
-  Set<String>? _keySet;
+  static JsonListStore get _store => JsonListStore(HiveSetup.settingsBox, _key);
 
-  List<BooruPost> _load() {
+  /// 内存缓存：`isFavorite` 会被瀑布流每格调用，不能每次都解码整份 JSON。
+  ///
+  /// 刻意做成 **static**：仓库实例随 `ref.invalidate` 重建，而缓存若跟着实例走，
+  /// 就会出现「A 实例持旧快照、B 实例持新快照，各自整键覆写」——v1.8.0 修过
+  /// 下载历史同一类丢更新，这里漏了。缓存全局一份，写入统一走 JsonListStore
+  /// 的串行事务（事务内部读的是**存储里的最新值**，不是这份缓存）。
+  static Box? _cacheBox;
+  static List<BooruPost>? _cache;
+  static Set<String>? _keySet;
+
+  static List<BooruPost> _load() {
+    final box = HiveSetup.settingsBox;
+    // box 换了（重启、测试里换临时目录）就丢掉旧缓存
+    if (!identical(_cacheBox, box)) {
+      _cacheBox = box;
+      _cache = null;
+      _keySet = null;
+    }
     final cached = _cache;
     if (cached != null) return cached;
-    final raw = _box.get(_key) as String?;
-    // 逐条容错：单条畸形收藏数据跳过，不让整个收藏列表加载崩溃。
-    final list = decodeJsonList(raw)
-        .map((e) {
-          final m = asStringMap(e);
-          if (m == null) return null;
+    _adopt(_store.read());
+    return _cache!;
+  }
+
+  /// 用一份「存储格式」的列表重建缓存。
+  static void _adopt(List<Map<String, dynamic>> items) {
+    final list = items
+        .map((m) {
           try {
             return BooruPost.fromJson(m);
           } catch (_) {
@@ -39,12 +51,14 @@ class UserFavoritesRepo {
         .toList();
     _cache = list;
     _keySet = list.map((p) => _keyFor(p.id, p.serverId)).toSet();
-    return list;
   }
 
   List<BooruPost> getAll() => List.unmodifiable(_load());
 
   static String _keyFor(String postId, String serverId) => '$serverId|$postId';
+
+  static String _keyOfEntry(Map<String, dynamic> entry) =>
+      _keyFor('${entry['id'] ?? ''}', '${entry['serverId'] ?? ''}');
 
   /// [serverId] 必传：键是 `serverId|postId`，给个空串默认值会拼出一个
   /// 永远不存在的键，`isFavorite` 静默返回 false、`remove` 静默删不到，
@@ -55,38 +69,32 @@ class UserFavoritesRepo {
   }
 
   Future<void> toggle(BooruPost post) async {
-    final all = _load();
     final key = _keyFor(post.id, post.serverId);
-    final existing = all.indexWhere((p) => _keyFor(p.id, p.serverId) == key);
-    if (existing >= 0) {
-      all.removeAt(existing);
-      _keySet!.remove(key);
-    } else {
-      all.add(post);
-      _keySet!.add(key);
-    }
-    await _persist();
+    final written = await _store.update((items) {
+      final exists = items.any((e) => _keyOfEntry(e) == key);
+      if (exists) {
+        return items.where((e) => _keyOfEntry(e) != key).toList();
+      }
+      // 新收藏放最前：收藏页按存储顺序展示，最近收藏应该在最上面
+      return <Map<String, dynamic>>[post.toJson(), ...items];
+    });
+    _adopt(written);
   }
 
   Future<void> saveAll(List<BooruPost> posts) async {
-    _cache = List.of(posts);
-    _keySet = posts.map((p) => _keyFor(p.id, p.serverId)).toSet();
-    await _persist();
+    final encoded = posts.map((p) => p.toJson()).toList();
+    await _store.write(encoded);
+    _adopt(encoded);
   }
 
   /// 同 [isFavorite]：`serverId` 必传，漏传会拼出空 serverId 的键而删不到。
   Future<void> remove(String postId, {required String serverId}) async {
-    final all = _load();
     final key = _keyFor(postId, serverId);
-    all.removeWhere((p) => _keyFor(p.id, p.serverId) == key);
-    _keySet!.remove(key);
-    await _persist();
+    final written = await _store.update(
+      (items) => items.where((e) => _keyOfEntry(e) != key).toList(),
+    );
+    _adopt(written);
   }
-
-  // 缓存变更发生在首个 await 之前，未 await 的调用方随后 invalidate 也能读到新值
-  // （Hive 的 put 同步更新内存帧，落盘异步）。
-  Future<void> _persist() =>
-      _box.put(_key, jsonEncode(_cache!.map((p) => p.toJson()).toList()));
 
   int get count => _load().length;
 }

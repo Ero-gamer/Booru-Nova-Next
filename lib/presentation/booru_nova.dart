@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:boorunova/foundation/database/hive_setup.dart';
 import 'package:boorunova/presentation/l10n/app_strings.dart';
 import 'package:boorunova/presentation/provider/app_settings.dart';
 import 'package:boorunova/presentation/provider/app_theme.dart';
@@ -8,18 +11,25 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class BooruNova extends ConsumerStatefulWidget {
-  const BooruNova({super.key});
+  const BooruNova({super.key, this.bootError});
+
+  /// 启动阶段（打开本地存储）的失败原因。非 null 时只渲染降级页：
+  /// 此刻**不能**碰任何 Riverpod provider —— 它们全都要读 Hive，一读就崩。
+  final Object? bootError;
 
   @override
   ConsumerState<BooruNova> createState() => _BooruNovaState();
 }
 
-class _BooruNovaState extends ConsumerState<BooruNova> {
+class _BooruNovaState extends ConsumerState<BooruNova>
+    with WidgetsBindingObserver {
   bool _splashVisible = true;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    if (widget.bootError != null) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final settings = ref.read(settingsProvider);
       ref.read(appThemeModeProvider.notifier).state = settings.themeMode;
@@ -27,7 +37,26 @@ class _BooruNovaState extends ConsumerState<BooruNova> {
   }
 
   @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // 进后台/被杀前把待写数据落盘：Hive 的写入是异步的，不 flush 的话
+    // 进程被回收会丢掉最后几笔（收藏、历史、下载记录）。
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      unawaited(HiveSetup.flush());
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final bootError = widget.bootError;
+    if (bootError != null) return _BootFailureApp(error: bootError);
+
     final router = ref.watch(routerProvider);
     final themeMode = ref.watch(appThemeModeProvider);
     final settings = ref.watch(settingsProvider);
@@ -107,5 +136,70 @@ class _BooruNovaState extends ConsumerState<BooruNova> {
         return WidgetsBinding.instance.platformDispatcher.platformBrightness ==
             Brightness.dark;
     }
+  }
+}
+
+/// 本地存储打不开时的降级页。
+///
+/// 它必须完全独立于 Riverpod 与 Hive —— 这正是它能显示出来的前提。
+/// 同时按系统明暗给一套最简主题，避免依赖 settings（那也要读 Hive）。
+class _BootFailureApp extends StatelessWidget {
+  const _BootFailureApp({required this.error});
+
+  final Object error;
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = WidgetsBinding.instance.platformDispatcher.platformBrightness ==
+        Brightness.dark;
+    final scheme = ColorScheme.fromSeed(
+      seedColor: const Color(0xFF951EE5),
+      brightness: dark ? Brightness.dark : Brightness.light,
+    );
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(useMaterial3: true, colorScheme: scheme),
+      home: Scaffold(
+        body: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.storage_rounded,
+                    size: 56, color: scheme.error),
+                const SizedBox(height: 16),
+                Text(T.bootFailedTitle,
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w600,
+                      color: scheme.onSurface,
+                    )),
+                const SizedBox(height: 8),
+                Text(
+                  T.bootFailedHint,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 13,
+                    height: 1.5,
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                // 原始错误留给开发者排查，不翻译
+                Text(
+                  '$error',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: scheme.onSurfaceVariant.withOpacity(0.7),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
