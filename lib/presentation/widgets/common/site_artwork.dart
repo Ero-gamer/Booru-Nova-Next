@@ -8,7 +8,7 @@ import 'package:extended_image/extended_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// 侧栏头图：当前站点随机一张「正常向」帖子的预览图，点一下进帖子查看器。
+/// 侧栏头图：当前站点随机一张「正常向」帖子的预览图，点整张图进帖子详情。
 ///
 /// 三个约束：
 /// - 图来自用户正在用的站点（见 [siteArtworkPostsProvider]），不是公开图库；
@@ -18,9 +18,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 class SiteArtwork extends ConsumerStatefulWidget {
   const SiteArtwork({super.key, this.onTap});
 
-  /// 点击头图。参数是候选列表与当前这张的下标，调用方据此进查看器，
-  /// 于是「点左右滑动看同一批候选」也能用。
-  final void Function(List<PostSummary> posts, int index)? onTap;
+  /// 点击头图（整张图都是热区）。参数是当前这张图对应的帖子。
+  final void Function(PostSummary post)? onTap;
 
   @override
   ConsumerState<SiteArtwork> createState() => _SiteArtworkState();
@@ -51,10 +50,6 @@ class _SiteArtworkState extends ConsumerState<SiteArtwork> {
     final next = _random.nextInt(length);
     _picked = next;
     return next;
-  }
-
-  void _onTap(List<PostSummary> posts, int index) {
-    widget.onTap?.call(posts, index);
   }
 
   /// 图片加载失败 → 换下一张候选。只在还有尝试额度时换。
@@ -94,56 +89,32 @@ class _SiteArtworkState extends ConsumerState<SiteArtwork> {
 
     final index = _pickIndex(posts.length);
     final post = posts[index];
-    final tappable = widget.onTap != null;
 
     return GestureDetector(
-      // opaque：图片未铺满（比如留白）时，空白处也该能点开帖子。
+      // opaque + 铺满：整张图都是热区，不留「只有某块能点」的死角。
       behavior: HitTestBehavior.opaque,
-      onTap: tappable ? () => _onTap(posts, index) : null,
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          ExtendedImage.network(
-            post.thumbnailUrl,
-            fit: BoxFit.cover,
-            cache: true,
-            cacheMaxAge: const Duration(days: 7),
-            // 头图最宽也就抽屉那么宽，没必要按原图分辨率解码。
-            cacheWidth: 900,
-            // 装饰图不值得让用户盯着占位等半分钟：超时就换下一张候选。
-            timeLimit: const Duration(seconds: 8),
-            retries: 1,
-            gaplessPlayback: true,
-            loadStateChanged: (state) {
-              if (state.extendedImageLoadState == LoadState.failed) {
-                _tryNext(posts);
-                return const _ArtworkFallback();
-              }
-              if (state.extendedImageLoadState == LoadState.completed) {
-                return state.completedWidget;
-              }
-              return const _ArtworkFallback();
-            },
-          ),
-          // 可点的提示：不然用户不会知道这张图能点开。
-          if (tappable)
-            Positioned(
-              top: 10,
-              right: 10,
-              child: IgnorePointer(
-                child: Container(
-                  width: 24,
-                  height: 24,
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.32),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.open_in_full,
-                      size: 13, color: Colors.white),
-                ),
-              ),
-            ),
-        ],
+      onTap: widget.onTap == null ? null : () => widget.onTap!(post),
+      child: ExtendedImage.network(
+        post.thumbnailUrl,
+        fit: BoxFit.cover,
+        cache: true,
+        cacheMaxAge: const Duration(days: 7),
+        // 头图最宽也就抽屉那么宽，没必要按原图分辨率解码。
+        cacheWidth: 900,
+        // 装饰图不值得让用户盯着占位等半分钟：超时就换下一张候选。
+        timeLimit: const Duration(seconds: 8),
+        retries: 1,
+        gaplessPlayback: true,
+        loadStateChanged: (state) {
+          if (state.extendedImageLoadState == LoadState.failed) {
+            _tryNext(posts);
+            return const _ArtworkFallback();
+          }
+          if (state.extendedImageLoadState == LoadState.completed) {
+            return state.completedWidget;
+          }
+          return const _ArtworkFallback();
+        },
       ),
     );
   }

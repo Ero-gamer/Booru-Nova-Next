@@ -174,7 +174,7 @@ void main() {
       WidgetTester tester,
       ProviderContainer container, {
       BooruRepository? repo,
-      void Function(List<PostSummary>, int)? onTap,
+      void Function(PostSummary)? onTap,
     }) async {
       if (repo != null) {
         await container.read(booruPageStateProvider.notifier).switchServer(repo);
@@ -195,21 +195,17 @@ void main() {
       );
     }
 
-    testWidgets('点头图回调带上整批候选和当前下标', (tester) async {
+    testWidgets('点整张头图回调的就是当前显示的那张帖子', (tester) async {
       final repo = _FakeRepo({
         'order:random|s': [_post('1'), _post('2'), _post('3')],
       });
-      List<PostSummary>? tappedPosts;
-      int? tappedIndex;
+      PostSummary? tappedPost;
 
       await pumpArtwork(
         tester,
         newContainer(),
         repo: repo,
-        onTap: (posts, index) {
-          tappedPosts = posts;
-          tappedIndex = index;
-        },
+        onTap: (post) => tappedPost = post,
       );
       // 图片地址在测试环境必然加载失败（会顺移下一张），等它稳定下来。
       await tester.pumpAndSettle();
@@ -217,9 +213,10 @@ void main() {
       await tester.tap(find.byType(SiteArtwork));
       await tester.pump();
 
-      expect(tappedPosts?.map((p) => p.id), ['1', '2', '3']);
-      expect(tappedIndex, isNotNull);
-      expect(tappedIndex, inInclusiveRange(0, tappedPosts!.length - 1));
+      // 必须是候选里的某一张，且点一次就给到具体帖子：调用方一次跳转就够，
+      // 不需要再自己从整批候选里找下标。
+      expect(['1', '2', '3'], contains(tappedPost?.id));
+      expect(tappedPost?.rating, 's');
     });
 
     testWidgets('黑名单里的标签不会出现在头图候选里', (tester) async {
@@ -229,25 +226,20 @@ void main() {
           _post('2'),
         ],
       });
-      int? tappedIndex;
-      List<PostSummary>? tappedPosts;
+      PostSummary? tappedPost;
 
       await pumpArtwork(
         tester,
         newContainer(blocked: {0: const BooruTag(serverId: '', name: 'spoiler')}),
         repo: repo,
-        onTap: (posts, index) {
-          tappedPosts = posts;
-          tappedIndex = index;
-        },
+        onTap: (post) => tappedPost = post,
       );
       await tester.pumpAndSettle();
 
       await tester.tap(find.byType(SiteArtwork));
       await tester.pump();
 
-      expect(tappedPosts?.map((p) => p.id), ['2']);
-      expect(tappedIndex, 0);
+      expect(tappedPost?.id, '2');
     });
 
     testWidgets('候选全被黑名单挡掉时回落渐变，且不再可点', (tester) async {
@@ -260,7 +252,27 @@ void main() {
         tester,
         newContainer(blocked: {0: const BooruTag(serverId: '', name: 'spoiler')}),
         repo: repo,
-        onTap: (_, __) => tapped = true,
+        onTap: (_) => tapped = true,
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byType(SiteArtwork));
+      await tester.pump();
+
+      expect(tapped, isFalse);
+    });
+
+    testWidgets('候选全被黑名单挡掉时回落渐变，且不再可点', (tester) async {
+      final repo = _FakeRepo({
+        'order:random|s': [_post('1', tags: const ['spoiler'])],
+      });
+      var tapped = false;
+
+      await pumpArtwork(
+        tester,
+        newContainer(blocked: {0: const BooruTag(serverId: '', name: 'spoiler')}),
+        repo: repo,
+        onTap: (_) => tapped = true,
       );
       await tester.pumpAndSettle();
 
@@ -277,7 +289,7 @@ void main() {
       await pumpArtwork(
         tester,
         newContainer(),
-        onTap: (_, __) => tapped = true,
+        onTap: (_) => tapped = true,
       );
       await tester.pumpAndSettle();
 

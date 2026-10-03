@@ -233,19 +233,14 @@ class _HomePageState extends ConsumerState<HomePage> {
     context.push(location);
   }
 
-  /// 侧栏头图底图：当前站点的随机安全图，点一下进帖子查看器。
+  /// 侧栏头图底图：当前站点的随机安全图，点整张图直达帖子详情页。
   ///
-  /// 走 `/post/:id` 而不是详情页：点瀑布流格子和点这里应该是同一个动作
-  /// （都是「打开这张图」，进去之后照样能翻到详情页）。
-  /// 整批候选一起传进去，查看器里就能左右滑着看这一页随机图。
+  /// 一步到位：以前这里先跳查看器、还要再点一次才到详情，属于多余的一步。
   Widget _artwork(BuildContext context) {
     return SiteArtwork(
-      onTap: (posts, index) {
+      onTap: (post) {
         Navigator.pop(context);
-        context.push(
-          '/post/${posts[index].id}',
-          extra: <String, dynamic>{'posts': posts, 'initialIndex': index},
-        );
+        context.push('/post/${post.id}/detail', extra: post);
       },
     );
   }
