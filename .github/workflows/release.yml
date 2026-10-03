@@ -48,10 +48,32 @@ jobs:
           flutter analyze --fatal-infos
           flutter test
 
+      - name: 安装编译所需的 Android SDK 平台
+        # 依赖里（gal）写死 compileSdk 36，runner 预装的 SDK 未必带这个平台；
+        # 缺了就报成一句看不懂的 "compileSdkVersion is not specified"。
+        run: |
+          set -euo pipefail
+          SDKMANAGER="${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKMANAGER" --licenses > /dev/null 2>&1 || true
+          "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0"
+
       - name: 构建（arm64 专用包 + 双 ABI 通用包）
         # 不加 --target-platform 会把 armeabi-v7a 一起打进通用包（38MB → 56MB），
         # 与 README 声明的体积不符——这条参数是发布正确性的一部分。
         run: flutter build apk --release --target-platform android-arm64,android-x64
+
+      - name: 校验装机清单（对发布包本身）
+        # 权威断言：对象是打包进 APK 的清单，不是中间产物
+        run: |
+          set -euo pipefail
+          APK=build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
+          AAPT2=$(ls -d "${ANDROID_HOME}"/build-tools/*/aapt2 2>/dev/null | sort -V | tail -n1)
+          "$AAPT2" dump xmltree "$APK" --file AndroidManifest.xml > /tmp/manifest.txt
+          grep -q 'allowBackup(0x01010280)=false' /tmp/manifest.txt
+          ! grep -q 'REQUEST_INSTALL_PACKAGES' /tmp/manifest.txt
+          ! grep -q 'POST_NOTIFICATIONS' /tmp/manifest.txt
+          grep -A3 'READ_EXTERNAL_STORAGE' /tmp/manifest.txt | grep -q 'maxSdkVersion'
+          echo "装机清单断言通过"
 
       - name: 断言签名证书
         # 证书指纹写死：用错密钥（例如 debug 签名或新 keystore）必须当场失败，

@@ -35,29 +35,20 @@ jobs:
       - name: Test
         run: flutter test
 
-      - name: 构建 debug APK（用于校验装机清单）
-        # Gradle 走仓库里的 wrapper（android/gradlew + wrapper.jar 已入库），
-        # 这样 CI 用的 Gradle 版本与本机一致。
-        run: flutter build apk --debug --target-platform android-arm64
-
-      - name: 校验装机清单（权限与备份策略）
-        # 断言对象是**打包进 APK 的清单**，不是中间产物：此前用
-        # `find ... | head -1` 可能选中某个插件的合并清单，导致断言在正确
-        # 代码上失败（也曾在错误代码上通过）。
+      - name: 断言清单策略（源码级）
+        # 刻意**不**在这里构建 Android：插件里写死的 compileSdk 36 需要 runner
+        # 装对应的 SDK 平台，会给每次 PR 增加数分钟且随时可能因环境漂移而红。
+        # 这里只做源码级断言（快、无依赖），权威断言放在 release.yml 里对
+        # **真正的发布包**跑 aapt2。
         run: |
           set -euo pipefail
-          APK=build/app/outputs/flutter-apk/app-debug.apk
-          test -f "$APK"
-          AAPT2=$(ls -d "${ANDROID_HOME}"/build-tools/*/aapt2 2>/dev/null | sort -V | tail -n1)
-          echo "使用 aapt2: $AAPT2"
-          "$AAPT2" dump xmltree "$APK" --file AndroidManifest.xml > /tmp/manifest.txt
-          cat /tmp/manifest.txt
-
-          # 自动备份必须关闭（凭据明文存在 servers box 里）
-          grep -q 'allowBackup(0x01010280)=false' /tmp/manifest.txt
-          # 两个高风险冗余权限必须不在
-          ! grep -q 'REQUEST_INSTALL_PACKAGES' /tmp/manifest.txt
-          ! grep -q 'POST_NOTIFICATIONS' /tmp/manifest.txt
-          # READ_EXTERNAL_STORAGE 必须带 maxSdkVersion（不再由插件决定）
-          grep -q 'READ_EXTERNAL_STORAGE' /tmp/manifest.txt
-          grep -A2 'READ_EXTERNAL_STORAGE' /tmp/manifest.txt | grep -q 'maxSdkVersion'
+          M=android/app/src/main/AndroidManifest.xml
+          grep -q 'android:allowBackup="false"' "$M"
+          grep -q 'android:dataExtractionRules=' "$M"
+          ! grep -q 'REQUEST_INSTALL_PACKAGES' "$M"
+          ! grep -q 'POST_NOTIFICATIONS' "$M"
+          grep -A3 'READ_EXTERNAL_STORAGE' "$M" | grep -q 'maxSdkVersion="32"'
+          test -f android/app/src/main/res/xml/data_extraction_rules.xml
+          test -f android/app/src/main/res/xml/backup_rules.xml
+          test -x android/gradlew || test -f android/gradlew
+          echo "清单与备份策略断言通过"
