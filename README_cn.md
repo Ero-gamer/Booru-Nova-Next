@@ -4,7 +4,7 @@
 
 # BooruNova [![Awesome](https://awesome.re/badge-flat.svg)](https://awesome.re)
 
-**一个客户端，浏览所有图站。** 开源的 Android Booru 图站聚合客户端——一个搜索栏、一条时间线、一个收藏与下载的家，8 大引擎通吃。
+**一个客户端，浏览所有图站。** 开源的 Android Booru 图站聚合客户端——一个搜索栏、一条时间线、一个收藏与下载的家，10 大引擎通吃，图片与视频同看。
 
 [English](README.md) / 简体中文
 
@@ -70,6 +70,7 @@
 - 🔍 **全屏查看器** —— 双指缩放、滑动切换、幻灯片播放
 - 👆 **长按速览** —— 任意格子长按浮起大图，松手即关，不用进详情页
 - 🧭 **探索** —— 热门 / 最新 / 随机，不输入标签也能逛
+- 🎬 **视频播放** —— 图片帖照旧，视频帖直接播；mp4 与 HLS（m3u8）流都支持
 - 🗃️ **图集** —— 浏览图片合集，仅在站点确实支持时显示入口
 - 🏷️ **标签分类** —— 画师 / 角色 / 版权 / 通用 / 元信息，五色区分
 
@@ -106,13 +107,14 @@
 | 引擎 | 站点示例 |
 |------|----------|
 | Danbooru | danbooru.donmai.us |
-| Gelbooru（v0.2 API） | gelbooru.com |
+| Gelbooru（v0.2 API） | gelbooru.com、safebooru.org、xbooru.com、realbooru.com、tbib.org、rule34.us |
 | Moebooru | yande.re、konachan.com |
-| Safebooru | safebooru.org |
 | e621 | e621.net |
 | Sankaku | chan.sankakucomplex.com |
 | Zerochan | zerochan.net |
 | Rule34 | rule34.xxx |
+| Shimmie2 / Paheal | rule34.paheal.net、allgirls.paheal.net |
+| 视频站（KVS） | rule34video.com 及同内核的视频站 |
 
 ## 下载
 

@@ -4,9 +4,10 @@
 
 # BooruNova
 
-**One app, every booru.** The open-source Android client that speaks all 8 major
-booru engines (Danbooru, Gelbooru, Moebooru, Safebooru, e621, Sankaku, Zerochan,
-Rule34) — one search bar, one timeline, one place for favorites & downloads.
+**One app, every booru.** The open-source Android client that speaks all major
+booru engines (Danbooru, Gelbooru, Moebooru, e621, Sankaku, Zerochan, Rule34,
+Shimmie2/paheal, and KVS video sites) — one search bar, one timeline, one place
+for favorites & downloads. Images and videos, in the same app.
 
 English / [简体中文](README_cn.md)
 
@@ -73,6 +74,7 @@ Everything is native Flutter, everything is on-device, and nothing is gated behi
 - 🔍 **Full-screen viewer** — pinch-zoom, swipe navigation, slideshow mode
 - 👆 **Peek on long-press** — press and hold any tile for a floating preview, release to dismiss
 - 🧭 **Explore** — hot / newest / random browsing without typing a query
+- 🎬 **Video playback** — video posts play right in the app; mp4 and HLS (m3u8) streams both supported
 - 🗃️ **Pools** — browse image sets, shown only for engines that actually implement them
 - 🏷️ **Categorized tags** — artist / character / copyright / general / meta
 
@@ -109,13 +111,14 @@ Any site running one of these engines can be added by URL — the app auto-detec
 | Engine | Example sites |
 |--------|---------------|
 | Danbooru | danbooru.donmai.us |
-| Gelbooru (v0.2 API) | gelbooru.com |
+| Gelbooru (v0.2 API) | gelbooru.com, safebooru.org, xbooru.com, realbooru.com, tbib.org, rule34.us |
 | Moebooru | yande.re, konachan.com |
-| Safebooru | safebooru.org |
 | e621 | e621.net |
 | Sankaku | chan.sankakucomplex.com |
 | Zerochan | zerochan.net |
 | Rule34 | rule34.xxx |
+| Shimmie2 / Paheal | rule34.paheal.net, allgirls.paheal.net |
+| Video sites (KVS) | rule34video.com and other sites on the same engine |
 
 ## Download
 
