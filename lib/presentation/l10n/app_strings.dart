@@ -107,6 +107,16 @@ class T {
   static String get streamCannotSave =>
       _t('该视频只有流地址，无法保存到相册', 'Stream-only video cannot be saved');
 
+  // 视频播放器控制
+  static String get play => _t('播放', 'Play');
+  static String get pause => _t('暂停', 'Pause');
+  static String get replay => _t('重播', 'Replay');
+  static String get mute => _t('静音', 'Mute');
+  static String get unmute => _t('取消静音', 'Unmute');
+  static String get fullscreen => _t('全屏', 'Fullscreen');
+  static String get exitFullscreen => _t('退出全屏', 'Exit fullscreen');
+  static String get playbackSpeed => _t('播放速度', 'Playback speed');
+
   // Post Detail
   static String get score => _t('分数', 'Score');
   static String get rating => _t('分级', 'Rating');

@@ -50,9 +50,16 @@ class HomeSearchBar extends ConsumerWidget {
           ),
           Expanded(
             child: GestureDetector(
+              // 必须显式声明 opaque：容器没有 decoration，命中测试只覆盖
+              // 文字字形本身，点到文字左右的空白处会落空——用户反映的
+              // 「必须点放大镜才能进搜索」就是这个原因。已用回归测试证伪过：
+              // 去掉这一行，test/video_controls_test.dart 里"点空白处"的
+              // 用例立刻失败。
+              behavior: HitTestBehavior.opaque,
               onTap: () => _openSearchPage(context),
               child: Container(
                 height: 48,
+                padding: const EdgeInsets.symmetric(horizontal: 4),
                 alignment: Alignment.centerLeft,
                 child: Text(
                   currentQuery.isNotEmpty ? currentQuery : T.tapToSearch,

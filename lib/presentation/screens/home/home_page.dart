@@ -245,39 +245,93 @@ class _HomePageState extends ConsumerState<HomePage> {
     );
   }
 
-  /// 左抽屉头图：品牌图标 + 应用名，白字压在随机头图的深色压暗层上。
-  Widget _brandHeader(BuildContext context) {
-    return Column(
+  /// 抽屉头图的内容排版：左右抽屉共用这一份。
+  ///
+  /// 头图的容器（随机图 + 压暗 + 下边缘渐隐）本来就由 SideNavPanel →
+  /// SideNavHeader 统一负责，右抽屉传 `right: true` 就已对齐；不一致的是
+  /// 压在头图上的内容——左抽屉是 32dp 品牌图标 + titleLarge 白字，
+  /// 右抽屉是 24dp 站标 + titleMedium 白字的一行紧凑排版，同一个头图里
+  /// 图标比例和字号都对不上，滑出右抽屉时像换了一套头部。
+  ///
+  /// 抽到这一处之后，两边只有「显示什么」不同，尺寸口径完全共享。
+  Widget _drawerHeader(
+    BuildContext context, {
+    required Widget leading,
+    required String title,
+    IconData? trailingIcon,
+    VoidCallback? onTap,
+  }) {
+    final textTheme = Theme.of(context).textTheme;
+    final content = Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Icon(Icons.image_search, size: 32, color: Colors.white),
+        leading,
         const SizedBox(height: 6),
-        Text(
-          'BooruNova',
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                color: Colors.white,
-                fontWeight: FontWeight.w600,
+        Row(
+          children: [
+            Flexible(
+              child: Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: textTheme.titleLarge?.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
+            ),
+            // 尾部图标（右抽屉的「可切换站点」提示）只在需要时占位：
+            // 左抽屉没有它，两边的图标与文字起点因此仍然一致。
+            if (trailingIcon != null) ...[
+              const SizedBox(width: 6),
+              Icon(trailingIcon, size: 20, color: Colors.white70),
+            ],
+          ],
         ),
       ],
+    );
+
+    if (onTap == null) return content;
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: onTap,
+      child: content,
+    );
+  }
+
+  /// 左抽屉头图：品牌图标 + 应用名，白字压在随机头图的深色压暗层上。
+  Widget _brandHeader(BuildContext context) {
+    return _drawerHeader(
+      context,
+      leading: const Icon(Icons.image_search, size: 32, color: Colors.white),
+      title: 'BooruNova',
     );
   }
 
   /// 右抽屉头图内容：当前站点 + 点击切换，与搜索栏 favicon 共用同一套菜单。
   ///
-  /// 此前这里只有 Navigator.pop + 一行 TODO 注释，按下等于关抽屉。
+  /// 排版走 [_drawerHeader]，与左抽屉的品牌头同一个图标尺寸 / 字号 /
+  /// 白字口径，只是把「品牌名」换成「站点名 + 切换提示」。
+  ///
+  /// 此前这里只有 Navigator.pop + 一行 TODO 注释，按下等于关抽屉；
+  /// 现在点击仍然弹站点切换菜单（行为不变）。
   Widget _serverHeader(BuildContext context) {
     // 没有活动站点时不要走 _buildFavicon：它对 _activeServer 取非空断言，
     // 而右抽屉在「一个站点都没配好」时也能被滑出来，会直接崩在断言上。
     final server = _activeServer;
+    // 图标尺寸与左抽屉的品牌图标同为 32：两边的头图内容块高度因此一致，
+    // 头图里同一位置起排，滑出时不会一高一矮。
     final leading = server == null
-        ? const SizedBox(width: 24, height: 24)
-        : _serverFavicon(server.baseUrl, server.type, size: 24);
+        ? const SizedBox(width: 32, height: 32)
+        : _serverFavicon(server.baseUrl, server.type, size: 32);
 
     return Builder(
-      builder: (ctx) => InkWell(
-        borderRadius: BorderRadius.circular(12),
+      builder: (ctx) => _drawerHeader(
+        ctx,
+        leading: leading,
+        title: server?.name ?? 'BooruNova',
+        trailingIcon: Icons.swap_horiz,
         onTap: () {
           Navigator.pop(ctx);
           // 抽屉已关闭，原锚点元素随之卸载；用 overlay 重新定位。
@@ -289,24 +343,6 @@ class _HomePageState extends ConsumerState<HomePage> {
             box.localToGlobal(const Offset(16, 88)),
           );
         },
-        child: Row(
-          children: [
-            leading,
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                server?.name ?? 'BooruNova',
-                style: Theme.of(context)
-                    .textTheme
-                    .titleMedium
-                    ?.copyWith(color: Colors.white),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            const SizedBox(width: 8),
-            const Icon(Icons.swap_horiz, size: 18, color: Colors.white70),
-          ],
-        ),
       ),
     );
   }
