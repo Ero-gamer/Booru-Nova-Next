@@ -21,6 +21,7 @@ class SafebooruRepository extends BaseBooruRepository {
         'tags': tags,
         'pid': query.page - 1,
         'limit': query.limit,
+        ...authQueryParams,
       },
     );
 

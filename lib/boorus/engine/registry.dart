@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 
 import 'package:boorunova/boorus/danbooru/danbooru.dart';
 import 'package:boorunova/boorus/danbooru/danbooru_repository.dart';
@@ -173,11 +173,20 @@ class BooruRegistry {
       headers['Authorization'] = 'Basic $basic';
     }
 
-    return DioFactory.create(
+    final dio = DioFactory.create(
       baseUrl: baseUrl ?? engine.booru.baseUrl,
       headers: headers,
       hostsInterceptor: hostsInterceptor,
     );
+    // 凭据的注入方式因站而异：danbooru / e621 认 HTTP Basic（上面已写成头），
+    // gelbooru / rule34 / safebooru 认 query 参数 api_key + user_id。
+    // 把凭据放进 options.extra，由引擎按自己的方式取用——此前只发 Basic，
+    // 那三个站即使用户填了凭据也永远 401。
+    dio.options.extra = <String, dynamic>{
+      if (login != null && login.isNotEmpty) 'authLogin': login,
+      if (apiKey != null && apiKey.isNotEmpty) 'authApiKey': apiKey,
+    };
+    return dio;
   }
 
   BooruRepository createRepository(BooruType type,

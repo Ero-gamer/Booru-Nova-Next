@@ -22,6 +22,7 @@ class Rule34Repository extends BaseBooruRepository {
         'pid': query.page - 1,
         'limit': query.limit,
         'json': 1,
+        ...authQueryParams,
       },
     );
 

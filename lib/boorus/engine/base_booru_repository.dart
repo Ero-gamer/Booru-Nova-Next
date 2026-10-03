@@ -41,6 +41,21 @@ abstract class BaseBooruRepository implements BooruRepository {
     ].join(' ');
   }
 
+  /// gelbooru 系的认证方式是 **query 参数**（`api_key` + `user_id`），
+  /// 不是 HTTP Basic。凭据由 registry 放进 `dio.options.extra`。
+  ///
+  /// 此前凭据只被拼成 Basic 头，而 gelbooru / rule34 / safebooru 要的是
+  /// 这两个参数——用户填了 API Key 也永远 401（本文件注释早已说明这一点）。
+  Map<String, dynamic> get authQueryParams {
+    final extra = dio.options.extra;
+    final login = extra['authLogin'];
+    final apiKey = extra['authApiKey'];
+    return <String, dynamic>{
+      if (apiKey is String && apiKey.isNotEmpty) 'api_key': apiKey,
+      if (login is String && login.isNotEmpty) 'user_id': login,
+    };
+  }
+
   /// 多数引擎通用的评级映射：safe / questionable / explicit。
   static const Map<String, String> ratingMapLong = {
     's': 'rating:safe',

@@ -141,6 +141,14 @@ class DownloadsPage extends ConsumerWidget {
       useLocal = await File(path).exists();
     }
     if (!context.mounted) return;
+    // 原图动辄 6000×5000——不设 cacheWidth 就按原始像素解码（ARGB 约 120MB），
+    // 低内存设备点开预览直接 OOM。预览按屏幕宽度 2 倍解码足够看清，再放大
+    // 交给 InteractiveViewer。瀑布流早已这么做（timeline 的 decodeWidth），
+    // 这里此前漏了。
+    final decodeWidth = (MediaQuery.sizeOf(context).width *
+            MediaQuery.devicePixelRatioOf(context) *
+            2)
+        .round();
     await showDialog<void>(
       context: context,
       builder: (ctx) => Dialog(
@@ -150,10 +158,12 @@ class DownloadsPage extends ConsumerWidget {
           child: useLocal
               ? Image.file(
                   File(path),
+                  cacheWidth: decodeWidth,
                   errorBuilder: (_, __, ___) => const _PreviewFallback(),
                 )
               : Image.network(
                   entry.imageUrl,
+                  cacheWidth: decodeWidth,
                   errorBuilder: (_, __, ___) => const _PreviewFallback(),
                 ),
         ),
