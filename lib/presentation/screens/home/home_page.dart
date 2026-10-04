@@ -269,6 +269,10 @@ class _HomePageState extends ConsumerState<HomePage> {
         leading,
         const SizedBox(height: 6),
         Row(
+          // 必须 min：Row 默认 mainAxisSize.max 会横铺整个头图宽度，
+          // 于是右抽屉那层"切换站点"的 InkWell 把整张头图都盖住——
+          // 用户点图片时切了站点，还点不进帖子详情。
+          mainAxisSize: MainAxisSize.min,
           children: [
             Flexible(
               child: Text(
@@ -333,13 +337,13 @@ class _HomePageState extends ConsumerState<HomePage> {
         title: server?.name ?? 'BooruNova',
         trailingIcon: Icons.swap_horiz,
         onTap: () {
-          Navigator.pop(ctx);
-          // 抽屉已关闭，原锚点元素随之卸载；用 overlay 重新定位。
-          final overlay = Overlay.of(context);
-          final box = context.findRenderObject() as RenderBox?;
+          // 刻意**不关抽屉**：切换站点时用户正看着侧栏，关掉再滑出来是
+          // 纯粹的重复劳动（用户反馈"切换站点时右侧边栏会收回去"）。
+          // 锚点用头部自己的渲染对象，抽屉开着也仍然有效。
+          final box = ctx.findRenderObject() as RenderBox?;
           if (box == null) return;
           _openServerSwitcherAt(
-            overlay.context,
+            Overlay.of(context).context,
             box.localToGlobal(const Offset(16, 88)),
           );
         },

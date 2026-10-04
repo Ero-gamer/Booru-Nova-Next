@@ -126,17 +126,23 @@ class SideNavHeader extends StatelessWidget {
                   artwork,
                   // 上浅下深的压暗：上边缘还能看出照片，下半部分安静下来，
                   // 标题压在深色处，任何图片上都是白字可读。
-                  const DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Color(0x3D000000),
-                          Color(0x99000000),
-                          Color(0xB3000000),
-                        ],
-                        stops: [0, 0.55, 1],
+                  //
+                  // 必须 IgnorePointer：DecoratedBox 的 hitTestSelf 会返回真
+                  // （BoxDecoration.hitTest 默认 true），压在图片上就把整张
+                  // 头图的点击全吃掉了——用户实测"侧栏图片点不进去"正是它。
+                  const IgnorePointer(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Color(0x3D000000),
+                            Color(0x99000000),
+                            Color(0xB3000000),
+                          ],
+                          stops: [0, 0.55, 1],
+                        ),
                       ),
                     ),
                   ),

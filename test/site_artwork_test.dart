@@ -145,12 +145,48 @@ void main() {
     });
 
     test('两种查询都拿不到合格候选时返回空列表（UI 回落主题渐变）', () async {
+      // 注意这是"两轮都拿不到"：第一轮安全口径被过滤光，第二轮（放开评级）
+      // 这个假仓库也没有配任何数据，所以确实为空。
       final repo = _FakeRepo({
         'order:random|s': [_post('1', rating: 'e')],
         '|s': const [],
       });
 
       expect(await fetchArtworkCandidates(repo), isEmpty);
+    });
+
+    test('站点上没有任何「正常向」内容时，用站点自己的缩略图兜底', () async {
+      // 用户实测："左侧栏的图片点不进去"——当时在用视频站：第一轮
+      // （安全 + 非视频）恒为空，头图退化成点不动的渐变。第二轮放开评级
+      // 并允许视频帖（封面仍是图片），头图才有东西可点。
+      final videoPost = _post(
+        'video',
+        rating: 'e',
+        thumb: 'https://img.test/thumb.jpg',
+        original: 'https://img.test/v.mp4',
+      );
+      final repo = _FakeRepo({
+        'order:random|s': const [],
+        '|s': const [],
+        'order:random|-': [videoPost],
+      });
+
+      final posts = await fetchArtworkCandidates(repo);
+      expect(posts.map((p) => p.id), ['video'],
+          reason: '第二轮应当拿到视频站自己的缩略图');
+      expect(posts.first.thumbnailUrl, isNotEmpty);
+    });
+
+    test('有正常向内容时不会为了凑数去问第二轮', () async {
+      final repo = _FakeRepo({
+        'order:random|s': [_post('safe')],
+        'order:random|-': [_post('unsafe', rating: 'e')],
+      });
+
+      final posts = await fetchArtworkCandidates(repo);
+      expect(posts.map((p) => p.id), ['safe']);
+      expect(repo.queries.any((q) => q.rating == null), isFalse,
+          reason: '第一轮有结果就不该放宽口径');
     });
 
     test('评级取值按引擎口径放行 safe/general，其余一律拒绝', () {

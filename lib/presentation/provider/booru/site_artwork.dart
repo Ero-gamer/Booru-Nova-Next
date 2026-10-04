@@ -36,17 +36,46 @@ const int _pageSize = 40;
 const String kArtworkRating = 's';
 
 /// 拉取一批可用的头图候选；拉不到就返回空列表（调用方回落主题渐变）。
+///
+/// 两轮取候选：
+/// - **第一轮**是克制口径：安全评级 + 非视频。头图是应用外壳，站点上有正常向
+///   内容时就不该把限制级图片贴到导航侧栏上。
+/// - **第二轮**在站点「压根没有正常向内容」时才跑（专营成人内容的图站、
+///   视频站）。此时第一轮恒为空，头图会退化成**点不动的渐变**——用户实测
+///   反馈"左侧栏的图片点不进去"就是这个。与其给一块假图，不如用它自己的
+///   缩略图：头图本来就是"当前站点的一张图"，点开就是对应帖子。
+///   这一轮放行视频帖——视频的封面依然是图片。
 Future<List<PostSummary>> fetchArtworkCandidates(BooruRepository repo) async {
-  // 优先让站点自己随机。不支持 `order:random` 的引擎（gelbooru / rule34 的
-  // DAPI）会把它当成普通标签从而返回空结果，于是退回默认排序再取一页——
-  // 头图只要「一张看得过去的图」，不值得为了随机性把功能做没。
+  final safe = await _fetch(
+    repo,
+    rating: kArtworkRating,
+    accept: usableForArtwork,
+  );
+  if (safe.isNotEmpty) return safe;
+
+  return _fetch(
+    repo,
+    rating: null,
+    accept: (post) => post.thumbnailUrl.isNotEmpty,
+  );
+}
+
+/// 取一页候选并按 [accept] 过滤。
+///
+/// 优先让站点自己随机。不支持 `order:random` 的引擎（gelbooru / rule34 的
+/// DAPI）会把它当成普通标签从而返回空结果，于是退回默认排序再取一页——
+/// 头图只要「一张看得过去的图」，不值得为了随机性把功能做没。
+Future<List<PostSummary>> _fetch(
+  BooruRepository repo, {
+  required String? rating,
+  required bool Function(PostSummary) accept,
+}) async {
   for (final tags in const ['order:random', '']) {
     try {
       final result = await repo.searchPosts(
-        BooruQuery(tags: tags, limit: _pageSize, rating: kArtworkRating),
+        BooruQuery(tags: tags, limit: _pageSize, rating: rating),
       );
-      final usable =
-          result.posts.where(usableForArtwork).toList(growable: false);
+      final usable = result.posts.where(accept).toList(growable: false);
       if (usable.isNotEmpty) return usable;
     } catch (_) {
       // 换下一种查询继续试；两种都失败就是空列表，头图回落渐变。
