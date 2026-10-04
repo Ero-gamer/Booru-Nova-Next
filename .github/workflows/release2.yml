@@ -1,0 +1,40 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.24.0
+          channel: stable
+          cache: true
+
+      - name: Build APK (armv7a)
+        run: flutter build apk --release --target-platform android-arm
+
+      - name: Generate Checksum
+        run: |
+          cd build/app/outputs/flutter-apk
+          sha256sum app-release.apk > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Publish Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            --title "Release ${GITHUB_REF_NAME}" \
+            --latest \
+            --generate-notes \
+            build/app/outputs/flutter-apk/app-release.apk \
+            build/app/outputs/flutter-apk/SHA256SUMS.txt
